@@ -105,6 +105,16 @@ const TX = {
     editUser:'Editar Usuário', saveChanges:'Salvar Alterações', userUpdated:'Usuário atualizado!',
     resetPasswordFor:'Redefinir Senha', newPasswordOptional:'Nova Senha (deixe vazio para manter)',
     edit:'Editar',
+    projectMembers:'Membros do Projeto', projectMgmt:'Projetos', projectMembersTitle:'Gerenciar Membros dos Projetos',
+    membersAssigned:'membro(s)', noProjectAccess:'Você não tem acesso a nenhum projeto. Solicite ao administrador.',
+    customization:'Personalização', customizationTitle:'Personalização da Marca',
+    systemNameLabel:'Nome do Sistema', systemNameHint:'Deixe vazio para usar o nome padrão',
+    companyLogo:'Logo da Empresa', noLogo:'Sem logo', uploadLogo:'Enviar Logo', removeLogo:'Remover Logo',
+    brandColors:'Cores da Marca', primaryColorLabel:'Cor Principal', sidebarColor1:'Sidebar (topo)', sidebarColor2:'Sidebar (base)',
+    resetBranding:'Restaurar Padrão', brandingReset:'Personalização restaurada!',
+    currentPlan:'Plano Atual', userLimitReached:'Limite de {n} usuários atingido. Contate o suporte para upgrade.',
+    projectLimitReached:'Limite de {n} projetos atingido. Contate o suporte para upgrade.',
+    planUpgradeHint:'Para upgrade, contate suporte@prospectahub.com',
     site:'Site', gMaps:'Google Maps',
     strengths:'Forças', weaknesses:'Fraquezas', opportunities:'Oportunidades', threats:'Ameaças',
   },
@@ -156,6 +166,16 @@ const TX = {
     editUser:'Edit User', saveChanges:'Save Changes', userUpdated:'User updated!',
     resetPasswordFor:'Reset Password', newPasswordOptional:'New Password (leave empty to keep)',
     edit:'Edit',
+    projectMembers:'Project Members', projectMgmt:'Projects', projectMembersTitle:'Manage Project Members',
+    membersAssigned:'member(s)', noProjectAccess:'You have no access to any project. Contact your administrator.',
+    customization:'Customization', customizationTitle:'Brand Customization',
+    systemNameLabel:'System Name', systemNameHint:'Leave empty to use default name',
+    companyLogo:'Company Logo', noLogo:'No logo', uploadLogo:'Upload Logo', removeLogo:'Remove Logo',
+    brandColors:'Brand Colors', primaryColorLabel:'Primary Color', sidebarColor1:'Sidebar (top)', sidebarColor2:'Sidebar (bottom)',
+    resetBranding:'Reset to Default', brandingReset:'Branding reset!',
+    currentPlan:'Current Plan', userLimitReached:'Limit of {n} users reached. Contact support to upgrade.',
+    projectLimitReached:'Limit of {n} projects reached. Contact support to upgrade.',
+    planUpgradeHint:'To upgrade, contact support@prospectahub.com',
     site:'Website', gMaps:'Google Maps',
     strengths:'Strengths', weaknesses:'Weaknesses', opportunities:'Opportunities', threats:'Threats',
   }
@@ -171,12 +191,14 @@ const GKEY = "AIzaSyCxS2Dn4QrIGpwAByyFnYZQ-uc1Xkvb2i0";
 const ROLES = [{v:"admin",l:"Administrador",en:"Administrator",i:"👑"},{v:"vendedor",l:"Vendedor",en:"Salesperson",i:"💼"},{v:"viewer",l:"Visualizador",en:"Viewer",i:"👁️"}];
 const MODULES = [{k:"dashboard",l:"Dashboard"},{k:"clientes",l:"Clientes"},{k:"pipeline",l:"Pipeline"},{k:"busca",l:"Busca Externa"},{k:"swot",l:"SWOT"},{k:"estrategias",l:"Estratégias"},{k:"materiais",l:"Materiais"},{k:"produtos",l:"Produtos"},{k:"dicas",l:"Dicas"}];
 const DEFAULT_PERMS = {admin:MODULES.map(m=>m.k), vendedor:["dashboard","clientes","pipeline","busca"], viewer:["dashboard","clientes"]};
+const PLANS = {starter:{nome:"Starter",maxUsers:5,maxProjects:2},pro:{nome:"Pro",maxUsers:10,maxProjects:10},enterprise:{nome:"Enterprise",maxUsers:20,maxProjects:999}};
 const DEFAULT_USERS = [{id:"u1",nome:"Administrador",email:"admin@prospectahub.com",senha:btoa("admin123"),role:"admin",ativo:true,tel:"",criadoEm:"2026-01-01"}];
 const ICONS = ["📁","💡","🐠","🏠","🚗","👗","🍔","💻","🏥","🌱","🔧","📱","🎵","📚","🎮","⚽","🎨","🔬","🏢","✈️","🍕","🎬","📷","🛒","🏗️","🔌","🎯","🌍","💎","🔥","🎪","🏆","🧪","🎭","🐶","🌺","☕","🎒","🛡️","💊","🧲","📡","🎧","🍷","🚀","🏋️","🎹","🖥️","🛸","🌮"];
 const hashPw = s => btoa(s);
 const checkPw = (input,stored) => btoa(input) === stored;
 const tl = (obj, lang) => lang==='en' && obj.en ? obj.en : obj.l;
 const fs = (px) => `calc(${px}px * var(--font-scale))`;
+const adjustColor = (hex,amt) => { const n=parseInt(hex.replace("#",""),16); const r=Math.min(255,(n>>16)+amt); const g=Math.min(255,((n>>8)&0xFF)+amt); const b=Math.min(255,(n&0xFF)+amt); return `#${(1<<24|r<<16|g<<8|b).toString(16).slice(1)}`; };
 const LS = {
   get: (k,def) => { try { const v=localStorage.getItem("ph_"+k); return v?JSON.parse(v):def; } catch { return def; } },
   set: (k,v) => { try { localStorage.setItem("ph_"+k, JSON.stringify(v)); } catch {} }
@@ -201,7 +223,7 @@ const detectRegiao = addr => {
 
 // ====== SAMPLE DATA ======
 const PROJECTS0 = [
-  { id:"p1", nome:"Luminárias LED PowerPic", desc:"Prospecção para fabricante de luminárias LED residenciais e comerciais.", ramo:"LED / Iluminação", cor:"#4f46e5", icon:"💡", dt:"2026-01-15",
+  { id:"p1", nome:"Luminárias LED PowerPic", desc:"Prospecção para fabricante de luminárias LED residenciais e comerciais.", ramo:"LED / Iluminação", cor:"#4f46e5", icon:"💡", dt:"2026-01-15", members:[],
     clients:[
       {id:1,nome:"Shopee Logística LTDA",contato:"Diretora Comercial",email:"comercial@shopee.com.br",tel:"(11) 3322-9888",tipo:"ecommerce",regiao:"São Paulo - Centro",uf:"SP",remoto:true,status:"prospeccao",sens:{preco:4,qualidade:3,entrega:4,estoque:5,marca:3,posvenda:2,custom:1,credito:4},notas:"Marketplace B2B. Foco em volume.",ult:"2026-03-02",end:"Avenida Paulista, 1000 - São Paulo - SP"},
       {id:2,nome:"Cativare Importação LTDA",contato:"Compras",email:"compras@cativare.com.br",tel:"(11) 3322-5555",tipo:"importador",regiao:"Osasco",uf:"SP",remoto:false,status:"contato",sens:{preco:5,qualidade:3,entrega:3,estoque:4,marca:2,posvenda:2,custom:1,credito:3},notas:"Importa LED da Ásia. Objetivo: substituição.",ult:"2026-02-20",end:"R. do Carmo, 102 - Osasco - SP"},
@@ -210,7 +232,7 @@ const PROJECTS0 = [
       {id:5,nome:"Atelier Arq. Dra. Carla Costa",contato:"Drª Carla Costa",email:"carla@ateliercarla.com.br",tel:"(11) 99999-8888",tipo:"arquiteto",regiao:"São Paulo - Zona Sul",uf:"SP",remoto:false,status:"negociacao",sens:{preco:2,qualidade:5,entrega:4,estoque:2,marca:5,posvenda:4,custom:5,credito:2},notas:"Projetos high-end. Sensível à qualidade e design.",ult:"2026-03-01",end:"Rua Oscar Freire, 300 - São Paulo - SP"}
     ]
   },
-  { id:"p2", nome:"Aquários Ornamentais — SP", desc:"Mapeamento de empresas de aquários ornamentais em São Paulo.", ramo:"Aquários Ornamentais / Aquarismo", cor:"#0891b2", icon:"🐠", dt:"2026-03-08",
+  { id:"p2", nome:"Aquários Ornamentais — SP", desc:"Mapeamento de empresas de aquários ornamentais em São Paulo.", ramo:"Aquários Ornamentais / Aquarismo", cor:"#0891b2", icon:"🐠", dt:"2026-03-08", members:[],
     clients:[
       {id:101,nome:"Eco Marine Aquários",contato:"Equipe Comercial",email:"contato@ecomarine.com.br",tel:"(11) 5051-3838",tipo:"fabricante",regiao:"São Paulo - Zona Sul",uf:"SP",remoto:false,status:"prospeccao",sens:{preco:2,qualidade:5,entrega:4,estoque:3,marca:5,posvenda:5,custom:5,credito:2},notas:"Fabrica aquários sob medida. +25 anos. Moema.",ult:"",end:"Al. Jurupis, 1937 - Moema, São Paulo - SP"},
       {id:102,nome:"Aquaterrário Fábrica",contato:"Vendas",email:"vendas@aquaterrario.com.br",tel:"(11) 4752-3552",tipo:"fabricante",regiao:"Suzano",uf:"SP",remoto:false,status:"prospeccao",sens:{preco:3,qualidade:4,entrega:4,estoque:4,marca:3,posvenda:4,custom:4,credito:3},notas:"Fábrica em Suzano.",ult:"",end:"R. Drº Tito Prates, 346 - Suzano - SP"},
@@ -234,7 +256,7 @@ const S = {
 };
 
 // ====== LOGIN ======
-function Login({onLogin,tx,lang}) {
+function Login({onLogin,tx,lang,branding}) {
   const [email,setEmail] = useState("admin@prospectahub.com");
   const [senha,setSenha] = useState("admin123");
   const [err,setErr] = useState("");
@@ -249,8 +271,8 @@ function Login({onLogin,tx,lang}) {
   return (
     <div style={{minHeight:"100vh",background:"var(--login-grad)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,sans-serif"}}>
       <div style={{textAlign:"center",marginBottom:24}}>
-        <img src={LOGO} alt="ProspectaHub" style={{height:54,marginBottom:8}}/>
-        <p style={{fontSize:fs(13),color:"rgba(255,255,255,0.6)"}}>{tx.systemTitle}</p>
+        <img src={branding?.logo||LOGO} alt={branding?.systemName||"ProspectaHub"} style={{height:54,marginBottom:8}}/>
+        <p style={{fontSize:fs(13),color:"rgba(255,255,255,0.6)"}}>{branding?.systemName||tx.systemTitle}</p>
       </div>
       <div style={{width:380,background:"var(--card-bg)",borderRadius:16,padding:40,boxShadow:"var(--modal-shadow)"}}>
         <div style={{marginBottom:12}}><label style={S.label}>{tx.email}</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com" style={S.input}/></div>
@@ -264,7 +286,7 @@ function Login({onLogin,tx,lang}) {
 }
 
 // ====== SIDEBAR ======
-function Sidebar({sec,setSec,projs,ap,setAp,user,onLogout,perms,tx,lang,theme,setTheme,fontSize,setFontSize,setLang,avatar,onAvatarChange,onAvatarRemove,avatarRef}) {
+function Sidebar({sec,setSec,projs,ap,setAp,user,onLogout,perms,tx,lang,theme,setTheme,fontSize,setFontSize,setLang,avatar,onAvatarChange,onAvatarRemove,avatarRef,branding}) {
   const p = projs.find(x=>x.id===ap);
   const projSec = [{k:"dashboard",l:tx.dashboard,i:"📊"},{k:"clientes",l:tx.clients,i:"👥"},{k:"pipeline",l:tx.pipeline,i:"🔄"},{k:"busca",l:tx.externalSearch,i:"🔍"},{k:"swot",l:tx.swotAnalysis,i:"🎯"},{k:"estrategias",l:tx.strategies,i:"📋"},{k:"materiais",l:tx.materials,i:"📁"},{k:"produtos",l:tx.products,i:"💡"},{k:"dicas",l:tx.tips,i:"🏆"}];
   const canSee = s => s==="projetos"||s==="admin"||perms[user.role].includes(s);
@@ -277,7 +299,7 @@ function Sidebar({sec,setSec,projs,ap,setAp,user,onLogout,perms,tx,lang,theme,se
   return (
     <div style={{width:250,minHeight:"100vh",background:"var(--sidebar-grad)",color:"white",flexShrink:0,position:"fixed",left:0,top:0,zIndex:100,boxShadow:"2px 0 20px rgba(0,0,0,0.3)",overflowY:"auto",display:"flex",flexDirection:"column"}}>
       <div style={{padding:"24px 20px 16px",borderBottom:"1px solid var(--sidebar-border)"}}>
-        <img src={LOGO} alt="ProspectaHub" style={{width:"100%",maxHeight:50}}/>
+        <img src={branding?.logo||LOGO} alt={branding?.systemName||"ProspectaHub"} style={{width:"100%",maxHeight:50}}/>
       </div>
       <div style={{flex:1,overflow:"auto"}}>
         <div style={{padding:"8px 8px 4px"}}>{item("projetos",tx.projects,"📂",sec==="projetos")}</div>
@@ -293,6 +315,8 @@ function Sidebar({sec,setSec,projs,ap,setAp,user,onLogout,perms,tx,lang,theme,se
         </>)}
         {user.role==="admin"&&<div style={{padding:"8px 8px 4px"}}>{item("admin",tx.admin,"⚙️",sec==="admin")}</div>}
       </div>
+      {/* Powered by */}
+      {!branding?.hidePoweredBy&&branding?.logo&&<div style={{padding:"4px 16px",fontSize:fs(9),color:"rgba(255,255,255,0.3)",textAlign:"center"}}>Powered by ProspectaHub</div>}
       {/* Settings */}
       <div style={{padding:"10px 16px",borderTop:"1px solid var(--sidebar-border)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -333,7 +357,7 @@ function Sidebar({sec,setSec,projs,ap,setAp,user,onLogout,perms,tx,lang,theme,se
 }
 
 // ====== ADMIN PANEL ======
-function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,tx,lang}) {
+function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,projs,setProjs,plan,branding,setBranding,tx,lang}) {
   const [tab,setTab] = useState("usuarios");
   const [newUser,setNewUser] = useState({nome:"",email:"",senha:"",role:"vendedor",tel:""});
   const [newUserAvatar,setNewUserAvatar] = useState(null);
@@ -369,6 +393,7 @@ function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,tx,lang}) {
   const onNewUserAvatar = (e) => { const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=(ev)=>setNewUserAvatar(ev.target.result); r.readAsDataURL(f); };
   const createUser = () => {
     if(!newUser.nome||!newUser.email||!newUser.senha) return;
+    if(users.filter(u=>u.ativo).length>=plan.maxUsers){alert(tx.userLimitReached.replace("{n}",plan.maxUsers));return;}
     const uid = "u"+Date.now();
     setUsers([...users,{id:uid,nome:newUser.nome,email:newUser.email,senha:hashPw(newUser.senha),role:newUser.role,tel:newUser.tel,ativo:true,criadoEm:new Date().toISOString().split("T")[0]}]);
     if(newUserAvatar) LS.set("avatar_"+uid, newUserAvatar);
@@ -378,9 +403,17 @@ function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,tx,lang}) {
   const filteredLogs = filterUser?logs.filter(l=>l.usuario===filterUser):logs;
   return (
     <div>
-      <h2 style={{fontSize:fs(22),fontWeight:700,marginBottom:20,color:"var(--text-1)"}}>{tx.administration}</h2>
-      <div style={{display:"flex",gap:8,marginBottom:20}}>
-        {[["usuarios",`👥 ${tx.users}`],["permissoes",`🔐 ${tx.permissions}`],["logs",`📊 ${tx.logs}`]].map(([t,label])=><button key={t} onClick={()=>setTab(t)} style={{padding:"8px 16px",borderRadius:8,border:"2px solid",borderColor:tab===t?"#4f46e5":"var(--input-border)",background:tab===t?"var(--accent-bg)":"var(--card-bg)",color:tab===t?"#4f46e5":"var(--text-2)",fontSize:fs(13),fontWeight:600,cursor:"pointer"}}>
+      <h2 style={{fontSize:fs(22),fontWeight:700,marginBottom:16,color:"var(--text-1)"}}>{tx.administration}</h2>
+      {/* Plan Banner */}
+      <div style={{...S.card,padding:16,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",borderLeft:"4px solid #4f46e5"}}>
+        <div>
+          <div style={{fontSize:fs(14),fontWeight:600,color:"var(--text-1)"}}>{tx.currentPlan}: <span style={{color:"#4f46e5"}}>{PLANS[plan.plan]?.nome||plan.plan}</span></div>
+          <div style={{fontSize:fs(12),color:"var(--text-2)",marginTop:4}}>👥 {users.filter(u=>u.ativo).length}/{plan.maxUsers} {tx.users} &nbsp;|&nbsp; 📂 {projs.length}/{plan.maxProjects} {tx.projects}</div>
+        </div>
+        <div style={{fontSize:fs(11),color:"var(--text-3)"}}>{tx.planUpgradeHint}</div>
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+        {[["usuarios",`👥 ${tx.users}`],["projetos",`📂 ${tx.projectMgmt}`],["personalizacao",`🎨 ${tx.customization}`],["permissoes",`🔐 ${tx.permissions}`],["logs",`📊 ${tx.logs}`]].map(([t,label])=><button key={t} onClick={()=>setTab(t)} style={{padding:"8px 16px",borderRadius:8,border:"2px solid",borderColor:tab===t?"#4f46e5":"var(--input-border)",background:tab===t?"var(--accent-bg)":"var(--card-bg)",color:tab===t?"#4f46e5":"var(--text-2)",fontSize:fs(13),fontWeight:600,cursor:"pointer"}}>
           {label}
         </button>)}
       </div>
@@ -512,6 +545,102 @@ function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,tx,lang}) {
           </div>}
         </div>
       )}
+      {tab==="projetos"&&(
+        <div>
+          <h3 style={{fontSize:fs(16),fontWeight:700,color:"var(--text-1)",marginBottom:16}}>📂 {tx.projectMembersTitle}</h3>
+          {projs.map(proj=>(
+            <div key={proj.id} style={{...S.card,padding:16,marginBottom:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                <span style={{fontSize:fs(22)}}>{proj.icon||"📁"}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:fs(15),color:"var(--text-1)"}}>{proj.nome}</div>
+                  <div style={{fontSize:fs(12),color:"var(--text-3)"}}>{(proj.members||[]).length} {tx.membersAssigned}</div>
+                </div>
+                <span style={{width:12,height:12,borderRadius:6,background:proj.cor,display:"inline-block"}}/>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {users.filter(u=>u.ativo).map(u=>{
+                  const isMember = (proj.members||[]).includes(u.id);
+                  return (
+                    <label key={u.id} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,background:isMember?"rgba(79,70,229,0.1)":"var(--bg-2)",cursor:"pointer",border:isMember?"2px solid #4f46e5":"2px solid transparent",fontSize:fs(13),color:"var(--text-1)",transition:"all .2s"}}>
+                      <input type="checkbox" checked={isMember} onChange={()=>{
+                        const updated = projs.map(p=>{
+                          if(p.id!==proj.id) return p;
+                          const mbs = p.members||[];
+                          return {...p, members: isMember ? mbs.filter(id=>id!==u.id) : [...mbs, u.id]};
+                        });
+                        setProjs(updated);
+                      }} style={{accentColor:"#4f46e5"}}/>
+                      {u.avatar?<img src={u.avatar} alt="" style={{width:22,height:22,borderRadius:11,objectFit:"cover"}}/>:
+                      <span style={{width:22,height:22,borderRadius:11,background:"linear-gradient(135deg,#4f46e5,#7c3aed)",color:"white",fontSize:fs(10),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{u.nome.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2)}</span>}
+                      {u.nome}
+                      {u.role==="admin"&&<span style={{fontSize:fs(10),background:"#4f46e5",color:"white",padding:"1px 6px",borderRadius:4,fontWeight:600}}>Admin</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {projs.length===0&&<div style={{padding:20,textAlign:"center",color:"var(--text-3)"}}>{tx.noRecords}</div>}
+        </div>
+      )}
+      {tab==="personalizacao"&&(
+        <div>
+          <h3 style={{fontSize:fs(16),fontWeight:700,color:"var(--text-1)",marginBottom:16}}>🎨 {tx.customizationTitle}</h3>
+          <div style={{...S.card,padding:20,marginBottom:16}}>
+            <label style={{fontWeight:600,fontSize:fs(14),color:"var(--text-1)",display:"block",marginBottom:8}}>{tx.companyLogo}</label>
+            <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:16}}>
+              {branding.logo?<img src={branding.logo} alt="Logo" style={{height:50,maxWidth:180,objectFit:"contain",borderRadius:8,border:"1px solid var(--border)"}}/>:
+              <div style={{height:50,width:120,borderRadius:8,border:"2px dashed var(--border)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-3)",fontSize:fs(12)}}>{tx.noLogo}</div>}
+              <div style={{display:"flex",gap:8}}>
+                <label style={{padding:"8px 16px",borderRadius:8,background:"var(--accent-grad,linear-gradient(135deg,#4f46e5,#7c3aed))",color:"white",fontSize:fs(13),fontWeight:600,cursor:"pointer",border:"none"}}>
+                  {tx.uploadLogo}
+                  <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{
+                    const f=e.target.files[0]; if(!f) return;
+                    const reader=new FileReader();
+                    reader.onload=ev=>setBranding(prev=>({...prev,logo:ev.target.result}));
+                    reader.readAsDataURL(f);
+                  }}/>
+                </label>
+                {branding.logo&&<button onClick={()=>setBranding(prev=>({...prev,logo:null}))} style={{padding:"8px 16px",borderRadius:8,background:"#ef4444",color:"white",fontSize:fs(13),fontWeight:600,cursor:"pointer",border:"none"}}>{tx.removeLogo}</button>}
+              </div>
+            </div>
+            <label style={{fontWeight:600,fontSize:fs(14),color:"var(--text-1)",display:"block",marginBottom:6}}>{tx.systemNameLabel}</label>
+            <input value={branding.systemName||""} onChange={e=>setBranding(prev=>({...prev,systemName:e.target.value}))} placeholder={tx.systemNameHint} style={{...S.input,marginBottom:16,maxWidth:400}}/>
+            <label style={{fontWeight:600,fontSize:fs(14),color:"var(--text-1)",display:"block",marginBottom:10}}>{tx.brandColors}</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:16,marginBottom:16}}>
+              <div>
+                <label style={{fontSize:fs(12),color:"var(--text-2)",display:"block",marginBottom:4}}>{tx.primaryColorLabel}</label>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <input type="color" value={branding.primaryColor||"#4f46e5"} onChange={e=>setBranding(prev=>({...prev,primaryColor:e.target.value}))} style={{width:40,height:36,border:"none",borderRadius:6,cursor:"pointer",background:"none"}}/>
+                  <span style={{fontSize:fs(12),color:"var(--text-3)",fontFamily:"monospace"}}>{branding.primaryColor||"#4f46e5"}</span>
+                </div>
+              </div>
+              <div>
+                <label style={{fontSize:fs(12),color:"var(--text-2)",display:"block",marginBottom:4}}>{tx.sidebarColor1}</label>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <input type="color" value={branding.sidebarGrad1||"#4f46e5"} onChange={e=>setBranding(prev=>({...prev,sidebarGrad1:e.target.value}))} style={{width:40,height:36,border:"none",borderRadius:6,cursor:"pointer",background:"none"}}/>
+                  <span style={{fontSize:fs(12),color:"var(--text-3)",fontFamily:"monospace"}}>{branding.sidebarGrad1||"—"}</span>
+                </div>
+              </div>
+              <div>
+                <label style={{fontSize:fs(12),color:"var(--text-2)",display:"block",marginBottom:4}}>{tx.sidebarColor2}</label>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <input type="color" value={branding.sidebarGrad2||"#7c3aed"} onChange={e=>setBranding(prev=>({...prev,sidebarGrad2:e.target.value}))} style={{width:40,height:36,border:"none",borderRadius:6,cursor:"pointer",background:"none"}}/>
+                  <span style={{fontSize:fs(12),color:"var(--text-3)",fontFamily:"monospace"}}>{branding.sidebarGrad2||"—"}</span>
+                </div>
+              </div>
+            </div>
+            {(branding.sidebarGrad1||branding.sidebarGrad2)&&(
+              <div style={{marginBottom:16}}>
+                <label style={{fontSize:fs(12),color:"var(--text-2)",display:"block",marginBottom:4}}>Preview Sidebar</label>
+                <div style={{width:60,height:120,borderRadius:10,background:`linear-gradient(180deg,${branding.sidebarGrad1||"#4f46e5"},${branding.sidebarGrad2||"#7c3aed"})`,boxShadow:"0 2px 8px rgba(0,0,0,.15)"}}/>
+              </div>
+            )}
+            <button onClick={()=>setBranding({logo:null,systemName:"",primaryColor:"#4f46e5",sidebarGrad1:"",sidebarGrad2:"",hidePoweredBy:false})} style={{padding:"10px 20px",borderRadius:8,background:"var(--bg-2)",color:"var(--text-1)",fontSize:fs(13),fontWeight:600,cursor:"pointer",border:"1px solid var(--border)"}}> ↩️ {tx.resetBranding}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -618,14 +747,15 @@ function Perfil({user,users,setUsers,setUser,avatar,onAvatarChange,onAvatarRemov
 }
 
 // ====== PAGES ======
-function Projetos({projs,setProjs,setAp,setSec,canEdit,tx,lang}) {
+function Projetos({projs,setProjs,setAp,setSec,canEdit,user,users,plan,tx,lang}) {
   const [show,setShow]=useState(false);
-  const [np,setNp]=useState({nome:"",desc:"",ramo:"",cor:"#4f46e5",icon:"📁"});
+  const [np,setNp]=useState({nome:"",desc:"",ramo:"",cor:"#4f46e5",icon:"📁",members:[]});
+  const visibleProjs = user.role==="admin" ? projs : projs.filter(p=>(p.members||[]).includes(user.id));
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div><h2 style={{fontSize:fs(22),fontWeight:700,color:"var(--text-1)",marginBottom:4}}>{tx.projects}</h2><p style={{color:"var(--text-2)",fontSize:fs(14)}}>{tx.organizeByBranch}</p></div>
-        {canEdit&&<button onClick={()=>setShow(!show)} style={{background:"var(--accent-grad)",color:"white",border:"none",padding:"10px 20px",borderRadius:8,fontSize:fs(14),fontWeight:600,cursor:"pointer"}}>{tx.newProject}</button>}
+        {canEdit&&<button onClick={()=>{if(projs.length>=plan.maxProjects){alert(tx.projectLimitReached.replace("{n}",plan.maxProjects));return;}setShow(!show);}} style={{background:"var(--accent-grad)",color:"white",border:"none",padding:"10px 20px",borderRadius:8,fontSize:fs(14),fontWeight:600,cursor:"pointer"}}>{tx.newProject}</button>}
       </div>
       {show&&canEdit&&(
         <div style={{...S.card,padding:24,marginBottom:20,boxShadow:"0 4px 20px rgba(0,0,0,0.1)"}}>
@@ -639,14 +769,27 @@ function Projetos({projs,setProjs,setAp,setSec,canEdit,tx,lang}) {
             <div><label style={S.label}>{tx.icon}</label><div style={{display:"flex",gap:4,flexWrap:"wrap",maxWidth:340}}>{ICONS.map(ic=><div key={ic} onClick={()=>setNp({...np,icon:ic})} style={{width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:8,cursor:"pointer",fontSize:fs(18),border:np.icon===ic?"2px solid #4f46e5":"1px solid var(--input-border)",background:np.icon===ic?"var(--accent-bg)":"var(--card-bg)"}}>{ic}</div>)}</div></div>
             <div><label style={S.label}>{tx.color}</label><input type="color" value={np.cor} onChange={e=>setNp({...np,cor:e.target.value})} style={{width:50,height:34,border:"1px solid var(--input-border)",borderRadius:6,cursor:"pointer"}}/></div>
           </div>
+          {/* Member selection */}
+          {users.filter(u=>u.id!=="u1"&&u.ativo).length>0&&<div style={{marginTop:12}}>
+            <label style={S.label}>👥 {tx.projectMembers}</label>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:10,border:"1px solid var(--input-border)",borderRadius:6,background:"var(--input-bg)"}}>
+              {users.filter(u=>u.id!=="u1"&&u.ativo).map(u=>(
+                <label key={u.id} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",fontSize:fs(12),color:"var(--text-1)"}}>
+                  <input type="checkbox" checked={(np.members||[]).includes(u.id)} onChange={e=>{const ms=np.members||[];setNp({...np,members:e.target.checked?[...ms,u.id]:ms.filter(x=>x!==u.id)});}}/>
+                  {u.nome}
+                </label>
+              ))}
+            </div>
+          </div>}
           <div style={{display:"flex",gap:10,marginTop:14}}>
-            <button onClick={()=>{if(!np.nome)return;setProjs([...projs,{...np,id:"p"+Date.now(),dt:new Date().toISOString().split("T")[0],clients:[]}]);setShow(false);setNp({nome:"",desc:"",ramo:"",cor:"#4f46e5",icon:"📁"});}} style={{padding:"10px 24px",borderRadius:8,background:np.nome?"#4f46e5":"var(--text-3)",color:"white",border:"none",fontSize:fs(14),fontWeight:600,cursor:np.nome?"pointer":"default"}}>{tx.create}</button>
+            <button onClick={()=>{if(!np.nome)return;setProjs([...projs,{...np,id:"p"+Date.now(),dt:new Date().toISOString().split("T")[0],clients:[]}]);setShow(false);setNp({nome:"",desc:"",ramo:"",cor:"#4f46e5",icon:"📁",members:[]});}} style={{padding:"10px 24px",borderRadius:8,background:np.nome?"#4f46e5":"var(--text-3)",color:"white",border:"none",fontSize:fs(14),fontWeight:600,cursor:np.nome?"pointer":"default"}}>{tx.create}</button>
             <button onClick={()=>setShow(false)} style={{padding:"10px 24px",borderRadius:8,background:"var(--hover-bg)",color:"var(--text-2)",border:"none",fontSize:fs(14),fontWeight:500,cursor:"pointer"}}>{tx.cancel}</button>
           </div>
         </div>
       )}
+      {visibleProjs.length===0&&<div style={{...S.card,padding:40,textAlign:"center"}}><p style={{fontSize:fs(14),color:"var(--text-3)"}}>{tx.noProjectAccess}</p></div>}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        {projs.map(p=>(
+        {visibleProjs.map(p=>(
           <div key={p.id} onClick={()=>{setAp(p.id);setSec("dashboard");}} style={{...S.card,cursor:"pointer",borderTop:`4px solid ${p.cor}`,padding:24}}>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
               <div style={{width:48,height:48,borderRadius:12,background:p.cor+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:fs(26)}}>{p.icon}</div>
@@ -948,7 +1091,7 @@ function App() {
   const [logs,setLogs] = useState(LS.get("logs",[]));
   const [perms,setPerms] = useState(LS.get("perms",DEFAULT_PERMS));
   const [sec,setSec]=useState("projetos");
-  const [projs,setProjs]=useState(PROJECTS0);
+  const [projs,setProjs]=useState(()=>{const s=LS.get("projs",null);if(s)return s.map(p=>({...p,members:p.members||[]}));return PROJECTS0.map(p=>({...p,members:p.members||[]}));});
   const [ap,setAp]=useState(null);
   const [sel,setSel]=useState(null);
   const [theme,setThemeState]=useState(LS.get("theme","light"));
@@ -956,6 +1099,8 @@ function App() {
   const [fontSize,setFontSizeState]=useState(LS.get("fontSize","normal"));
   const [avatar,setAvatar]=useState(null);
   const avatarRef = useRef(null);
+  const [plan]=useState(LS.get("plan",{plan:"starter",maxUsers:5,maxProjects:2}));
+  const [branding,setBranding]=useState(LS.get("branding",{logo:null,systemName:"",primaryColor:"#4f46e5",sidebarGrad1:"",sidebarGrad2:"",hidePoweredBy:false}));
   const tx = TX[lang] || TX.pt;
 
   // Apply theme & font to DOM
@@ -964,6 +1109,24 @@ function App() {
     document.documentElement.setAttribute("data-font",fontSize==="normal"?"":fontSize);
     document.documentElement.lang = lang==='en'?'en':'pt-BR';
   },[theme,fontSize,lang]);
+
+  // Persist projects & branding
+  useEffect(()=>{LS.set("projs",projs);},[projs]);
+  useEffect(()=>{LS.set("branding",branding);},[branding]);
+  useEffect(()=>{LS.set("plan",plan);},[plan]);
+
+  // Apply branding CSS overrides
+  useEffect(()=>{
+    const r=document.documentElement;
+    if(branding.primaryColor&&branding.primaryColor!=="#4f46e5"){
+      r.style.setProperty("--accent-grad",`linear-gradient(135deg,${branding.primaryColor},${adjustColor(branding.primaryColor,30)})`);
+    } else { r.style.removeProperty("--accent-grad"); }
+    if(branding.sidebarGrad1&&branding.sidebarGrad2){
+      r.style.setProperty("--sidebar-grad",`linear-gradient(180deg,${branding.sidebarGrad1},${branding.sidebarGrad2})`);
+      r.style.setProperty("--login-grad",`linear-gradient(135deg,${branding.sidebarGrad1} 0%,${branding.sidebarGrad2} 50%,${branding.primaryColor||"#4f46e5"} 100%)`);
+    } else { r.style.removeProperty("--sidebar-grad"); r.style.removeProperty("--login-grad"); }
+    document.title=branding.systemName||"ProspectaHub — Mapeamento Inteligente de Clientes";
+  },[branding,theme]);
 
   // Load avatar when user changes
   useEffect(()=>{
@@ -1011,7 +1174,7 @@ function App() {
   // Persist on change
   try { LS.set("users",users); LS.set("perms",perms); LS.set("logs",logs); } catch {}
 
-  if(!user) return <Login onLogin={handleLogin} tx={tx} lang={lang}/>;
+  if(!user) return <Login onLogin={handleLogin} tx={tx} lang={lang} branding={branding}/>;
 
   const proj=projs.find(p=>p.id===ap);
   const cls=proj?.clients||[];
@@ -1021,8 +1184,8 @@ function App() {
   const cp = {tx,lang};
 
   const page=()=>{
-    if(sec==="projetos") return <Projetos projs={projs} setProjs={setProjs} setAp={setAp} setSec={setSec} canEdit={canEdit} {...cp}/>;
-    if(sec==="admin"&&user.role==="admin") return <AdminPanel users={users} setUsers={setUsers} logs={logs} setLogs={setLogs} perms={perms} setPerms={setPerms} {...cp}/>;
+    if(sec==="projetos") return <Projetos projs={projs} setProjs={setProjs} setAp={setAp} setSec={setSec} canEdit={canEdit} user={user} users={users} plan={plan} {...cp}/>;
+    if(sec==="admin"&&user.role==="admin") return <AdminPanel users={users} setUsers={setUsers} logs={logs} setLogs={setLogs} perms={perms} setPerms={setPerms} projs={projs} setProjs={setProjs} plan={plan} branding={branding} setBranding={setBranding} {...cp}/>;
     if(sec==="perfil") return <Perfil user={user} users={users} setUsers={setUsers} setUser={setUser} avatar={avatar} onAvatarChange={onAvatarChange} onAvatarRemove={onAvatarRemove} avatarRef={avatarRef} {...cp}/>;
     if(!proj){setSec("projetos");return null;}
     switch(sec){
@@ -1042,7 +1205,7 @@ function App() {
 
   return (
     <div style={{display:"flex",fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,sans-serif",background:"var(--bg)",minHeight:"100vh"}}>
-      <Sidebar sec={sec} setSec={setSec} projs={projs} ap={ap} setAp={setAp} user={user} onLogout={handleLogout} perms={perms} tx={tx} lang={lang} theme={theme} setTheme={setTheme} fontSize={fontSize} setFontSize={setFontSize} setLang={setLang} avatar={avatar} onAvatarChange={onAvatarChange} onAvatarRemove={onAvatarRemove} avatarRef={avatarRef}/>
+      <Sidebar sec={sec} setSec={setSec} projs={projs} ap={ap} setAp={setAp} user={user} onLogout={handleLogout} perms={perms} tx={tx} lang={lang} theme={theme} setTheme={setTheme} fontSize={fontSize} setFontSize={setFontSize} setLang={setLang} avatar={avatar} onAvatarChange={onAvatarChange} onAvatarRemove={onAvatarRemove} avatarRef={avatarRef} branding={branding}/>
       <div style={{flex:1,marginLeft:250,padding:"24px 28px",maxWidth:1100}}>{page()}</div>
     </div>
   );
