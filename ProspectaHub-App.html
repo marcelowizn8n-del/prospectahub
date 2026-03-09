@@ -102,6 +102,9 @@ const TX = {
     changePassword:'Alterar Senha', currentPassword:'Senha Atual', newPassword:'Nova Senha', confirmPassword:'Confirmar Nova Senha',
     passwordChanged:'Senha alterada com sucesso!', passwordMismatch:'As senhas não coincidem', wrongCurrentPassword:'Senha atual incorreta',
     profileSaved:'Perfil salvo com sucesso!',
+    editUser:'Editar Usuário', saveChanges:'Salvar Alterações', userUpdated:'Usuário atualizado!',
+    resetPasswordFor:'Redefinir Senha', newPasswordOptional:'Nova Senha (deixe vazio para manter)',
+    edit:'Editar',
     site:'Site', gMaps:'Google Maps',
     strengths:'Forças', weaknesses:'Fraquezas', opportunities:'Oportunidades', threats:'Ameaças',
   },
@@ -150,6 +153,9 @@ const TX = {
     changePassword:'Change Password', currentPassword:'Current Password', newPassword:'New Password', confirmPassword:'Confirm New Password',
     passwordChanged:'Password changed successfully!', passwordMismatch:'Passwords do not match', wrongCurrentPassword:'Current password is incorrect',
     profileSaved:'Profile saved successfully!',
+    editUser:'Edit User', saveChanges:'Save Changes', userUpdated:'User updated!',
+    resetPasswordFor:'Reset Password', newPasswordOptional:'New Password (leave empty to keep)',
+    edit:'Edit',
     site:'Website', gMaps:'Google Maps',
     strengths:'Strengths', weaknesses:'Weaknesses', opportunities:'Opportunities', threats:'Threats',
   }
@@ -333,6 +339,31 @@ function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,tx,lang}) {
   const [newUserAvatar,setNewUserAvatar] = useState(null);
   const newUserAvatarRef = useRef(null);
   const [filterUser,setFilterUser] = useState("");
+  // Edit user state
+  const [editId,setEditId] = useState(null);
+  const [editData,setEditData] = useState({nome:"",email:"",tel:"",role:"",novaSenha:""});
+  const [editAvatar,setEditAvatar] = useState(null);
+  const [editAvatarChanged,setEditAvatarChanged] = useState(false);
+  const editAvatarRef = useRef(null);
+  const [editMsg,setEditMsg] = useState(null);
+  const openEdit = (u) => {
+    setEditId(u.id);
+    setEditData({nome:u.nome,email:u.email,tel:u.tel||"",role:u.role,novaSenha:""});
+    setEditAvatar(LS.get("avatar_"+u.id,null));
+    setEditAvatarChanged(false);
+    setEditMsg(null);
+  };
+  const onEditAvatar = (e) => { const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=(ev)=>{setEditAvatar(ev.target.result);setEditAvatarChanged(true);}; r.readAsDataURL(f); };
+  const removeEditAvatar = () => { setEditAvatar(null); setEditAvatarChanged(true); };
+  const saveEdit = () => {
+    if(!editData.nome||!editData.email) return;
+    const upd = {nome:editData.nome,email:editData.email,tel:editData.tel,role:editData.role};
+    if(editData.novaSenha) upd.senha = hashPw(editData.novaSenha);
+    setUsers(users.map(u=>u.id===editId?{...u,...upd}:u));
+    if(editAvatarChanged) LS.set("avatar_"+editId, editAvatar);
+    setEditMsg({type:"ok",text:tx.userUpdated});
+    setTimeout(()=>{setEditId(null);setEditMsg(null);},1500);
+  };
   const updateUser = (id,data) => setUsers(users.map(u=>u.id===id?{...u,...data}:u));
   const deleteUser = id => { if(id!=="u1") setUsers(users.filter(u=>u.id!==id)); };
   const onNewUserAvatar = (e) => { const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=(ev)=>setNewUserAvatar(ev.target.result); r.readAsDataURL(f); };
@@ -393,12 +424,52 @@ function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,tx,lang}) {
                   </div>
                 </div>
                 <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>openEdit(u)} style={{padding:"6px 12px",borderRadius:6,border:"1px solid #4f46e5",background:"var(--accent-bg)",color:"#4f46e5",fontSize:fs(12),fontWeight:500,cursor:"pointer"}}>✏️ {tx.edit}</button>
                   {u.id!=="u1"&&<button onClick={()=>updateUser(u.id,{ativo:!u.ativo})} style={{padding:"6px 12px",borderRadius:6,border:"1px solid var(--input-border)",fontSize:fs(12),fontWeight:500,cursor:"pointer",background:"var(--card-bg)",color:"var(--text-1)"}}>{u.ativo?tx.block:tx.activate}</button>}
                   {u.id!=="u1"&&<button onClick={()=>deleteUser(u.id)} style={{padding:"6px 12px",borderRadius:6,border:"1px solid var(--danger-border)",background:"var(--danger-bg)",color:"#dc2626",fontSize:fs(12),fontWeight:500,cursor:"pointer"}}>{tx.delete}</button>}
                 </div>
               </div>
             );})}
           </div>
+          {/* Edit User Modal */}
+          {editId&&(
+            <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--overlay)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={()=>setEditId(null)}>
+              <div onClick={e=>e.stopPropagation()} style={{width:520,background:"var(--card-bg)",borderRadius:16,padding:32,boxShadow:"var(--modal-shadow)",maxHeight:"90vh",overflowY:"auto"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+                  <h3 style={{fontSize:fs(18),fontWeight:700,color:"var(--text-1)"}}>✏️ {tx.editUser}</h3>
+                  <button onClick={()=>setEditId(null)} style={{background:"none",border:"none",fontSize:fs(20),cursor:"pointer",color:"var(--text-3)"}}>✕</button>
+                </div>
+                {/* Avatar */}
+                <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
+                  <div onClick={()=>editAvatarRef.current?.click()} style={{width:72,height:72,borderRadius:"50%",background:editAvatar?"transparent":"var(--hover-bg)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",overflow:"hidden",border:"3px solid var(--input-border)",fontSize:fs(26),color:"var(--text-3)",flexShrink:0}}>
+                    {editAvatar?<img src={editAvatar} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>:editData.nome.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2)||"📷"}
+                  </div>
+                  <input ref={editAvatarRef} type="file" accept="image/*" style={{display:"none"}} onChange={onEditAvatar}/>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <button onClick={()=>editAvatarRef.current?.click()} style={{padding:"6px 14px",borderRadius:6,border:"1px solid var(--input-border)",background:"var(--card-bg)",color:"var(--text-2)",fontSize:fs(12),fontWeight:500,cursor:"pointer"}}>📷 {tx.changePhoto}</button>
+                    {editAvatar&&<button onClick={removeEditAvatar} style={{padding:"6px 14px",borderRadius:6,border:"1px solid var(--danger-border)",background:"var(--danger-bg)",color:"#ef4444",fontSize:fs(12),fontWeight:500,cursor:"pointer"}}>✕ {tx.removePhoto}</button>}
+                  </div>
+                </div>
+                {/* Fields */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:18}}>
+                  <div><label style={S.label}>{tx.name}</label><input value={editData.nome} onChange={e=>setEditData({...editData,nome:e.target.value})} style={S.input}/></div>
+                  <div><label style={S.label}>{tx.email}</label><input type="email" value={editData.email} onChange={e=>setEditData({...editData,email:e.target.value})} style={S.input}/></div>
+                  <div><label style={S.label}>{tx.phone}</label><input type="tel" value={editData.tel} onChange={e=>setEditData({...editData,tel:e.target.value})} placeholder="(11) 99999-9999" style={S.input}/></div>
+                  <div><label style={S.label}>{tx.role}</label><select value={editData.role} onChange={e=>setEditData({...editData,role:e.target.value})} style={S.input}>{ROLES.map(r=><option key={r.v} value={r.v}>{tl(r,lang)}</option>)}</select></div>
+                </div>
+                {/* Password reset */}
+                <div style={{padding:"14px 0",borderTop:"1px solid var(--card-border)",marginBottom:14}}>
+                  <label style={S.label}>🔒 {tx.newPasswordOptional}</label>
+                  <input type="password" autoComplete="new-password" value={editData.novaSenha} onChange={e=>setEditData({...editData,novaSenha:e.target.value})} style={S.input} placeholder="••••••••"/>
+                </div>
+                {editMsg&&<div style={{marginBottom:14,padding:"8px 14px",borderRadius:8,fontSize:fs(13),fontWeight:500,background:"var(--success-bg)",color:"#16a34a"}}>{editMsg.text}</div>}
+                <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                  <button onClick={()=>setEditId(null)} style={{padding:"9px 20px",borderRadius:8,border:"1px solid var(--input-border)",background:"var(--card-bg)",color:"var(--text-2)",fontSize:fs(13),fontWeight:600,cursor:"pointer"}}>{tx.cancel}</button>
+                  <button onClick={saveEdit} style={{padding:"9px 20px",borderRadius:8,border:"none",background:"var(--accent-grad)",color:"white",fontSize:fs(13),fontWeight:600,cursor:"pointer"}}>💾 {tx.saveChanges}</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {tab==="permissoes"&&(
