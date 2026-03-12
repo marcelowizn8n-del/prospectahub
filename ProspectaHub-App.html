@@ -529,6 +529,59 @@ Retorne APENAS um JSON válido (sem markdown) com:
   }
 };
 
+// Gerar script de abordagem com IA
+const generateScript = async (company, lang) => {
+  const keys = getApiKeys();
+  if(!keys.aiKey) throw new Error(lang==='en'?"AI key not configured":"Chave de IA não configurada");
+  const pt=lang!=='en';
+  const sensLabels = {preco:"Preço",qualidade:"Qualidade",entrega:"Prazo Entrega",estoque:"Estoque",marca:"Marca",posvenda:"Pós-Venda",custom:"Personalização",credito:"Crédito"};
+  const sensText = Object.entries(company.sens||{}).map(([k,v])=>`${sensLabels[k]||k}: ${v}/5`).join(", ");
+  const topSens = Object.entries(company.sens||{}).filter(([k,v])=>v>=4).map(([k])=>sensLabels[k]||k);
+  const prompt = pt?`Gere um roteiro de abordagem comercial B2B para esta empresa:
+Nome: ${company.nome}
+Tipo: ${company.tipo}
+Região: ${company.regiao}
+Telefone: ${company.telefone||"N/A"}
+Contato: ${company.contato||"N/A"}
+Avaliação Google: ${company.avaliacoes?.google?.rating||"N/A"}
+Sensibilidades: ${sensText}
+Pontos fortes a explorar: ${topSens.join(", ")||"Não definido"}
+Produtos relevantes: ${(company.produtosRelevantes||[]).join(", ")||"Não definido"}
+Notas: ${company.notas||"Sem notas"}
+
+Gere 3 scripts curtos e práticos (máx 3 linhas cada):
+1. **Ligação telefônica** - Abertura da ligação
+2. **Mensagem WhatsApp** - Primeira mensagem
+3. **Email de apresentação** - Assunto e corpo breve
+
+Cada script deve ser personalizado para as sensibilidades desta empresa. Se é sensível a preço, foque em condições. Se é sensível a qualidade, foque em diferenciais técnicos. Etc.
+Formato: texto puro, separado por seções com === LIGAÇÃO === , === WHATSAPP === , === EMAIL ===`
+:`Generate a B2B sales approach script for this company:
+Name: ${company.nome}, Type: ${company.tipo}, Region: ${company.regiao}
+Sensitivities: ${sensText}
+Key points: ${topSens.join(", ")||"Not defined"}
+Products: ${(company.produtosRelevantes||[]).join(", ")||"Not defined"}
+Generate 3 short practical scripts (max 3 lines each):
+1. Phone call opening, 2. WhatsApp first message, 3. Email intro
+Format: plain text with === CALL === , === WHATSAPP === , === EMAIL === separators`;
+
+  if(keys.aiProvider === "anthropic") {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",headers:{"Content-Type":"application/json","x-api-key":keys.aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1024,messages:[{role:"user",content:prompt}]})
+    });
+    if(!r.ok) throw new Error("Erro API Anthropic");
+    return (await r.json()).content[0].text;
+  } else {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${keys.aiKey}`},
+      body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"user",content:prompt}],temperature:0.7})
+    });
+    if(!r.ok) throw new Error("Erro API OpenAI");
+    return (await r.json()).choices[0].message.content;
+  }
+};
+
 // Converter resultado do Google Places para formato de cliente
 const placeToClient = (place, socialLinks={}) => {
   const name = place.displayName?.text || "";
@@ -1433,66 +1486,106 @@ function Projetos({projs,setProjs,setAp,setSec,canEdit,user,users,plan,tx,lang})
 }
 
 function Dashboard({cls,proj,tx,lang}) {
+  const pt=lang!=='en';
   const mc = cls.map(migrateClient);
   const statusCounts = STATUS.map(s=>({s,c:mc.filter(x=>x.status===s.k).length}));
   const totalCompanies = mc.length;
   const aiCount = mc.filter(c=>c.sensAI?.analyzed).length;
   const avgRating = mc.filter(c=>c.avaliacoes?.google?.rating>0).reduce((a,c)=>a+c.avaliacoes.google.rating,0) / (mc.filter(c=>c.avaliacoes?.google?.rating>0).length||1);
   const ts = topS(mc.reduce((a,c)=>Object.entries(c.sens).forEach(([k,v])=>a[k]=(a[k]||0)+v)||a,{}));
-
-  // Contact channels
   const channels = {};
   mc.forEach(c=>{const ch=c.canalPreferido||"none";channels[ch]=(channels[ch]||0)+1;});
   const channelLabels = {email:"📧 Email",telefone:"📞 "+tx.phone,whatsapp:"💬 WhatsApp",instagram:"📸 Instagram",linkedin:"💼 LinkedIn",none:"❓ "+tx.noChannel};
-
-  // Recent (last 5)
   const recent = [...mc].sort((a,b)=>(b.criadoEm||"").localeCompare(a.criadoEm||"")).slice(0,5);
+
+  // Performance metrics
+  const pipeCounts = {};
+  PIPELINE.forEach(p=>{pipeCounts[p.k]=mc.filter(c=>(migrateClient(c).pipe||"prospeccao")===p.k).length;});
+  const contatados = (pipeCounts.contato||0)+(pipeCounts.apresentacao||0)+(pipeCounts.proposta||0)+(pipeCounts.negociacao||0)+(pipeCounts.fechado||0);
+  const taxaContato = totalCompanies>0?Math.round(contatados/totalCompanies*100):0;
+  const taxaConversao = contatados>0?Math.round((pipeCounts.fechado||0)/contatados*100):0;
+  const comContato = mc.filter(c=>c.telefone||c.email).length;
+  const pctContato = totalCompanies>0?Math.round(comContato/totalCompanies*100):0;
+  const pendingFups = mc.reduce((a,c)=>a+(c.followups||[]).filter(f=>!f.done&&new Date(f.date)<=new Date()).length,0);
+  const hotLeads = mc.filter(c=>{let s=0;if(c.telefone)s+=15;if(c.email)s+=15;if(c.sensAI?.analyzed)s+=20;if(c.avaliacoes?.google?.rating>=4)s+=10;if(c.social?.linkedin)s+=5;if(c.social?.instagram)s+=5;if(c.social?.website)s+=5;if(c.produtosRelevantes?.length>0)s+=10;if(c.historico?.length>0)s+=5;if(Object.values(c.sens||{}).some(v=>v!==3))s+=10;return s>=70;}).length;
+
+  // Export CSV
+  const exportCSV = () => {
+    const headers = ["Nome","Tipo","Status","Pipeline","Telefone","Email","Endereço","Região","Avaliação Google","Fonte","Criado Em","Notas"];
+    const rows = mc.map(c=>[c.nome,c.tipo,c.status,c.pipe||"prospeccao",c.telefone||"",c.email||"",c.endereco||"",c.regiao||"",c.avaliacoes?.google?.rating||"",c.fonte||"",c.criadoEm||"",(c.notas||"").replace(/"/g,'""')]);
+    const csv = [headers.join(","),...rows.map(r=>r.map(v=>`"${v}"`).join(","))].join("\n");
+    const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download=`${proj.nome}_clientes_${new Date().toISOString().split("T")[0]}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div>
-      <h2 style={{fontSize:fs(22),fontWeight:700,marginBottom:6,color:"var(--text-1)"}}>{tx.dashboard}</h2>
-      <p style={{fontSize:fs(14),color:"var(--text-2)",marginBottom:20}}>{tx.project}: <strong>{proj.nome}</strong></p>
-
-      {/* Row 1: Status cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
-        {statusCounts.map(({s,c})=><div key={s.k} style={{...S.card,textAlign:"center",padding:14,borderTop:`3px solid ${s.c}`}}>
-          <div style={{fontSize:fs(22),fontWeight:700,color:s.c}}>{c}</div>
-          <div style={{fontSize:fs(11),color:"var(--text-2)",marginTop:2}}>{s.i} {tl(s,lang)}</div>
-        </div>)}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div>
+          <h2 style={{fontSize:fs(22),fontWeight:700,color:"var(--text-1)",margin:0}}>{tx.dashboard}</h2>
+          <p style={{fontSize:fs(14),color:"var(--text-2)",marginTop:4}}>{tx.project}: <strong>{proj.nome}</strong></p>
+        </div>
+        <button onClick={exportCSV} style={{padding:"8px 16px",borderRadius:8,background:"var(--card-bg)",border:"1px solid var(--border)",color:"var(--text-1)",fontSize:fs(12),fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>📥 {pt?"Exportar CSV":"Export CSV"}</button>
       </div>
 
-      {/* Row 2: Stats */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
-        <div style={{...S.card,textAlign:"center",padding:14}}><div style={{fontSize:fs(20),fontWeight:700,color:"var(--text-1)"}}>{totalCompanies}</div><div style={{fontSize:fs(11),color:"var(--text-2)"}}>📊 {tx.totalCompanies}</div></div>
-        <div style={{...S.card,textAlign:"center",padding:14}}><div style={{fontSize:fs(20),fontWeight:700,color:"#4f46e5"}}>{aiCount}</div><div style={{fontSize:fs(11),color:"var(--text-2)"}}>🤖 {tx.aiAnalyzedCount}</div></div>
-        <div style={{...S.card,textAlign:"center",padding:14}}><div style={{fontSize:fs(20),fontWeight:700,color:"#f59e0b"}}>{avgRating>0?avgRating.toFixed(1):"—"}</div><div style={{fontSize:fs(11),color:"var(--text-2)"}}>⭐ {tx.avgRating}</div></div>
+      {/* Row 1: Performance KPIs */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:16}}>
+        <div style={{...S.card,textAlign:"center",padding:12}}><div style={{fontSize:fs(20),fontWeight:700,color:"var(--text-1)"}}>{totalCompanies}</div><div style={{fontSize:fs(10),color:"var(--text-2)"}}>📊 {pt?"Total":"Total"}</div></div>
+        <div style={{...S.card,textAlign:"center",padding:12}}><div style={{fontSize:fs(20),fontWeight:700,color:"#3b82f6"}}>{taxaContato}%</div><div style={{fontSize:fs(10),color:"var(--text-2)"}}>📞 {pt?"Contatados":"Contacted"}</div></div>
+        <div style={{...S.card,textAlign:"center",padding:12}}><div style={{fontSize:fs(20),fontWeight:700,color:"#22c55e"}}>{taxaConversao}%</div><div style={{fontSize:fs(10),color:"var(--text-2)"}}>🎯 {pt?"Conversão":"Conversion"}</div></div>
+        <div style={{...S.card,textAlign:"center",padding:12}}><div style={{fontSize:fs(20),fontWeight:700,color:"#f59e0b"}}>{hotLeads}</div><div style={{fontSize:fs(10),color:"var(--text-2)"}}>🔥 {pt?"Quentes":"Hot Leads"}</div></div>
+        <div style={{...S.card,textAlign:"center",padding:12}}><div style={{fontSize:fs(20),fontWeight:700,color:pendingFups>0?"#ef4444":"#22c55e"}}>{pendingFups}</div><div style={{fontSize:fs(10),color:"var(--text-2)"}}>⏰ {pt?"Follow-ups":"Follow-ups"}</div></div>
+        <div style={{...S.card,textAlign:"center",padding:12}}><div style={{fontSize:fs(20),fontWeight:700,color:"#4f46e5"}}>{aiCount}</div><div style={{fontSize:fs(10),color:"var(--text-2)"}}>🤖 {pt?"Analisados":"AI Analyzed"}</div></div>
       </div>
 
-      {/* Row 3: Sensitivities + Channels */}
+      {/* Row 2: Pipeline mini-bar */}
+      <div style={{...S.card,padding:14,marginBottom:16}}>
+        <h3 style={{fontSize:fs(13),fontWeight:600,marginBottom:10,color:"var(--text-1)"}}>📋 Pipeline</h3>
+        <div style={{display:"flex",height:28,borderRadius:8,overflow:"hidden",background:"var(--bar-bg)"}}>
+          {PIPELINE.map(p=>{const count=pipeCounts[p.k]||0;const pct=totalCompanies>0?count/totalCompanies*100:0;return pct>0?<div key={p.k} title={`${pt?p.l:p.en}: ${count}`} style={{width:pct+"%",background:p.c,display:"flex",alignItems:"center",justifyContent:"center",fontSize:fs(10),color:"white",fontWeight:700,minWidth:count>0?24:0,transition:"width 0.3s"}}>{count>0?count:""}</div>:null;})}
+        </div>
+        <div style={{display:"flex",gap:12,marginTop:8,flexWrap:"wrap"}}>
+          {PIPELINE.map(p=><div key={p.k} style={{display:"flex",alignItems:"center",gap:4,fontSize:fs(10),color:"var(--text-3)"}}><div style={{width:8,height:8,borderRadius:2,background:p.c}}/>{pt?p.l:p.en}: <strong>{pipeCounts[p.k]||0}</strong></div>)}
+        </div>
+      </div>
+
+      {/* Row 3: Status + Data quality */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
         <div style={{...S.card}}>
-          <h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>{tx.aggSens}</h3>
+          <h3 style={{fontSize:fs(13),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>📈 {pt?"Status dos Clientes":"Client Status"}</h3>
+          {statusCounts.map(({s,c})=><div key={s.k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:fs(12),width:20,textAlign:"center"}}>{s.i}</span>
+            <span style={{fontSize:fs(11),width:90,color:"var(--text-2)"}}>{tl(s,lang)}</span>
+            <div style={{flex:1,height:7,background:"var(--bar-bg)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${totalCompanies>0?c/totalCompanies*100:0}%`,height:"100%",background:s.c,borderRadius:4}}/></div>
+            <span style={{fontSize:fs(11),fontWeight:700,color:s.c,width:24,textAlign:"right"}}>{c}</span>
+          </div>)}
+        </div>
+        <div style={{...S.card}}>
+          <h3 style={{fontSize:fs(13),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>📊 {pt?"Qualidade dos Dados":"Data Quality"}</h3>
+          {[
+            {l:pt?"Com telefone/email":"With phone/email",v:comContato,t:totalCompanies,c:"#22c55e"},
+            {l:pt?"Sensibilidades analisadas":"Sensitivities analyzed",v:mc.filter(c=>c.sensAI?.analyzed||Object.values(c.sens||{}).some(x=>x!==3)).length,t:totalCompanies,c:"#4f46e5"},
+            {l:pt?"Com redes sociais":"With social media",v:mc.filter(c=>c.social?.linkedin||c.social?.instagram||c.social?.facebook).length,t:totalCompanies,c:"#3b82f6"},
+            {l:pt?"Com avaliação Google":"With Google rating",v:mc.filter(c=>c.avaliacoes?.google?.rating>0).length,t:totalCompanies,c:"#f59e0b"}
+          ].map((d,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:fs(11),flex:1,color:"var(--text-2)"}}>{d.l}</span>
+            <div style={{width:80,height:7,background:"var(--bar-bg)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${d.t>0?d.v/d.t*100:0}%`,height:"100%",background:d.c,borderRadius:4}}/></div>
+            <span style={{fontSize:fs(11),fontWeight:700,color:d.c,width:40,textAlign:"right"}}>{d.v}/{d.t}</span>
+          </div>)}
+        </div>
+      </div>
+
+      {/* Row 4: Sensitivities + Recent */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <div style={{...S.card}}>
+          <h3 style={{fontSize:fs(13),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>{tx.aggSens}</h3>
           {SENS.map(s=><div key={s.k} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}><span style={{fontSize:fs(13),width:18,textAlign:"center"}}>{s.i}</span><span style={{fontSize:fs(11),width:90,color:"var(--text-2)"}}>{tl(s,lang)}</span><div style={{flex:1,height:7,background:"var(--bar-bg)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${(mc.reduce((a,c)=>a+(c.sens?.[s.k]||0),0)/mc.length||0)*20}%`,height:"100%",background:s.c,borderRadius:4}}/></div></div>)}
         </div>
         <div style={{...S.card}}>
-          <h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>{tx.contactChannels}</h3>
-          {Object.entries(channels).sort((a,b)=>b[1]-a[1]).map(([ch,count])=>
-            <div key={ch} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--card-border)"}}>
-              <span style={{fontSize:fs(13),color:"var(--text-1)"}}>{channelLabels[ch]||ch}</span>
-              <span style={{fontSize:fs(12),fontWeight:700,color:"var(--text-1)"}}>{count}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Row 4: Top Sensitivities + Recent */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        <div style={{...S.card}}>
-          <h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>{tx.topSens}</h3>
-          {ts.map(s=>s?<div key={s.k} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0"}}><span style={{fontSize:fs(18)}}>{s.i}</span><div><div style={{fontSize:fs(13),fontWeight:600,color:"var(--text-1)"}}>{tl(s,lang)}</div><div style={{fontSize:fs(11),color:"var(--text-3)"}}>{tx.highInc}</div></div></div>:null)}
-        </div>
-        <div style={{...S.card}}>
-          <h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>{tx.recentAdditions}</h3>
+          <h3 style={{fontSize:fs(13),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>{tx.recentAdditions}</h3>
           {recent.map(c=>{const t=TIPOS.find(x=>x.v===c.tipo);const st=STATUS.find(x=>x.k===c.status);return(
             <div key={c.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid var(--card-border)"}}>
               <span style={{fontSize:fs(14)}}>{t?.i}</span>
@@ -1579,6 +1672,7 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
   const [tab,setTab]=useState("info"),[aiLoading,setAiLoading]=useState(false),[aiErr,setAiErr]=useState("");
   const [editCompras,setEditCompras]=useState(false),[newProd,setNewProd]=useState("");
   const [newHist,setNewHist]=useState(""),[newFupDate,setNewFupDate]=useState(""),[newFupNote,setNewFupNote]=useState("");
+  const [scriptLoading,setScriptLoading]=useState(false),[script,setScript]=useState("");
   if(!cl) return null;
   const t = TIPOS.find(x=>x.v===cl.tipo);
   const mc = migrateClient(cl);
@@ -1636,8 +1730,20 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
         </div>
       </div>
 
+      {/* Script Generator */}
+      {canEdit&&<div style={{...S.card,padding:14,marginBottom:16,background:"linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%)",color:"white"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:fs(14),fontWeight:700}}>🎯 {lang==='en'?"Approach Script Generator":"Gerador de Script de Abordagem"}</div>
+            <div style={{fontSize:fs(11),opacity:0.8}}>{lang==='en'?"AI generates personalized scripts based on this client's sensitivities":"IA gera scripts personalizados baseado nas sensibilidades deste cliente"}</div>
+          </div>
+          <button onClick={async()=>{setScriptLoading(true);setScript("");try{const s=await generateScript(mc,lang);setScript(s);}catch(e){setScript("❌ "+e.message);}setScriptLoading(false);}} disabled={scriptLoading} style={{padding:"8px 18px",borderRadius:8,background:"rgba(255,255,255,0.2)",color:"white",border:"1px solid rgba(255,255,255,0.3)",fontSize:fs(12),fontWeight:600,cursor:scriptLoading?"wait":"pointer",whiteSpace:"nowrap"}}>{scriptLoading?(lang==='en'?"Generating...":"Gerando..."):(lang==='en'?"Generate Script 🤖":"Gerar Script 🤖")}</button>
+        </div>
+        {script&&<div style={{marginTop:12,padding:12,background:"rgba(0,0,0,0.2)",borderRadius:8,fontSize:fs(12),lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto"}}>{script}</div>}
+      </div>}
+
       {/* Tabs */}
-      <div style={{display:"flex",gap:2,marginBottom:0}}>
+      <div style={{display:"flex",gap:2,marginBottom:0,flexWrap:"wrap"}}>
         <button onClick={()=>setTab("info")} style={tabStyle("info")}>{tx.infoTab}</button>
         <button onClick={()=>setTab("social")} style={tabStyle("social")}>{tx.socialTab}</button>
         <button onClick={()=>setTab("sens")} style={tabStyle("sens")}>{tx.sensTab}</button>
