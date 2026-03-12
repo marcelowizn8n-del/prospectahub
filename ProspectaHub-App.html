@@ -147,7 +147,7 @@ const TX = {
     employeeCount:'Funcionários', segment:'Segmento', cnpjLabel:'CNPJ',
     googleRating:'Avaliação Google', reviewSummary:'Resumo das Avaliações',
     addProduct:'Adicionar produto...', noSocialLinks:'Nenhuma rede social encontrada',
-    infoTab:'Info', socialTab:'Redes Sociais', sensTab:'Sensibilidades', productsTab:'Produtos',
+    infoTab:'Info', socialTab:'Redes Sociais', sensTab:'Sensibilidades', productsTab:'Produtos', timelineTab:'Histórico', followupTab:'Follow-ups',
     // IA
     analyzeAI:'Analisar com IA', analyzingAI:'Analisando...', aiAnalyzed:'Analisado por IA',
     aiConfidence:'Confiança', aiReasoning:'Justificativa', aiSources:'Fontes',
@@ -282,7 +282,7 @@ const TX = {
     employeeCount:'Employees', segment:'Segment', cnpjLabel:'Tax ID',
     googleRating:'Google Rating', reviewSummary:'Review Summary',
     addProduct:'Add product...', noSocialLinks:'No social media found',
-    infoTab:'Info', socialTab:'Social Media', sensTab:'Sensitivities', productsTab:'Products',
+    infoTab:'Info', socialTab:'Social Media', sensTab:'Sensitivities', productsTab:'Products', timelineTab:'History', followupTab:'Follow-ups',
     // AI
     analyzeAI:'Analyze with AI', analyzingAI:'Analyzing...', aiAnalyzed:'AI Analyzed',
     aiConfidence:'Confidence', aiReasoning:'Reasoning', aiSources:'Sources',
@@ -339,8 +339,8 @@ const STATUS = [{k:"novo",l:"Novo",en:"New",c:"#94a3b8",i:"🆕"},{k:"contatado"
 const PIPELINE_TO_STATUS = {prospeccao:"novo",contato:"contatado",apresentacao:"contatado",proposta:"negociacao",negociacao:"negociacao",fechado:"fechado",perdido:"novo"};
 const GKEY = "AIzaSyCxS2Dn4QrIGpwAByyFnYZQ-uc1Xkvb2i0";
 const ROLES = [{v:"admin",l:"Administrador",en:"Administrator",i:"👑"},{v:"vendedor",l:"Vendedor",en:"Salesperson",i:"💼"},{v:"viewer",l:"Visualizador",en:"Viewer",i:"👁️"}];
-const MODULES = [{k:"dashboard",l:"Dashboard"},{k:"clientes",l:"Clientes"},{k:"busca",l:"Busca Inteligente"},{k:"swot",l:"SWOT"},{k:"estrategias",l:"Estratégias"},{k:"materiais",l:"Materiais"},{k:"produtos",l:"Produtos"},{k:"dicas",l:"Dicas"}];
-const DEFAULT_PERMS = {admin:MODULES.map(m=>m.k), vendedor:["dashboard","clientes","busca"], viewer:["dashboard","clientes"]};
+const MODULES = [{k:"dashboard",l:"Dashboard"},{k:"clientes",l:"Clientes"},{k:"pipeline",l:"Pipeline"},{k:"busca",l:"Busca Inteligente"},{k:"swot",l:"SWOT"},{k:"estrategias",l:"Estratégias"},{k:"materiais",l:"Materiais"},{k:"produtos",l:"Produtos"},{k:"dicas",l:"Dicas"}];
+const DEFAULT_PERMS = {admin:MODULES.map(m=>m.k), vendedor:["dashboard","clientes","pipeline","busca"], viewer:["dashboard","clientes","pipeline"]};
 const PLANS = {starter:{nome:"Starter",maxUsers:5,maxProjects:2},pro:{nome:"Pro",maxUsers:10,maxProjects:10},enterprise:{nome:"Enterprise",maxUsers:20,maxProjects:999}};
 const DEFAULT_USERS = [{id:"u1",nome:"Administrador",email:"admin@prospectahub.com",senha:btoa("admin123"),role:"admin",ativo:true,tel:"",criadoEm:"2026-01-01"}];
 const ICONS = ["📁","💡","🐠","🏠","🚗","👗","🍔","💻","🏥","🌱","🔧","📱","🎵","📚","🎮","⚽","🎨","🔬","🏢","✈️","🍕","🎬","📷","🛒","🏗️","🔌","🎯","🌍","💎","🔥","🎪","🏆","🧪","🎭","🐶","🌺","☕","🎒","🛡️","💊","🧲","📡","🎧","🍷","🚀","🏋️","🎹","🖥️","🛸","🌮"];
@@ -377,6 +377,10 @@ const newClient = (base={}) => ({
   // Extra info
   porte: base.porte||"", cnpj: base.cnpj||"", segmento: base.segmento||"",
   fonte: base.fonte||"manual", criadoEm: base.criadoEm||new Date().toISOString().split("T")[0],
+  pipe: base.pipe||"prospeccao",
+  score: base.score||0,
+  followups: base.followups||[],
+  historico: base.historico||[],
   ...base
 });
 
@@ -399,6 +403,9 @@ const migrateClient = (c) => {
   if(!m.segmento) m.segmento = "";
   if(!m.fonte) m.fonte = "manual";
   if(!m.criadoEm) m.criadoEm = new Date().toISOString().split("T")[0];
+  if(!m.pipe) m.pipe = m.status==="fechado"?"fechado":m.status==="negociacao"?"negociacao":m.status==="contatado"?"contato":"prospeccao";
+  if(!m.followups) m.followups = [];
+  if(!m.historico) m.historico = [];
   return m;
 };
 
@@ -756,7 +763,7 @@ function Login({onLogin,tx,lang,branding}) {
 // ====== SIDEBAR ======
 function Sidebar({sec,setSec,projs,ap,setAp,user,onLogout,perms,tx,lang,theme,setTheme,fontSize,setFontSize,setLang,avatar,onAvatarChange,onAvatarRemove,avatarRef,branding}) {
   const p = projs.find(x=>x.id===ap);
-  const projSec = [{k:"dashboard",l:tx.dashboard,i:"📊"},{k:"clientes",l:tx.clients,i:"👥"},{k:"busca",l:tx.smartSearch,i:"🔍"},{k:"swot",l:tx.swotAnalysis,i:"🎯"},{k:"estrategias",l:tx.strategies,i:"📋"},{k:"materiais",l:tx.materials,i:"📁"},{k:"produtos",l:tx.products,i:"💡"},{k:"dicas",l:tx.tips,i:"🏆"}];
+  const projSec = [{k:"dashboard",l:tx.dashboard,i:"📊"},{k:"clientes",l:tx.clients,i:"👥"},{k:"pipeline",l:tx.pipeline,i:"📋"},{k:"busca",l:tx.smartSearch,i:"🔍"},{k:"swot",l:tx.swotAnalysis,i:"🎯"},{k:"estrategias",l:tx.strategies,i:"📋"},{k:"materiais",l:tx.materials,i:"📁"},{k:"produtos",l:tx.products,i:"💡"},{k:"dicas",l:tx.tips,i:"🏆"}];
   const canSee = s => s==="projetos"||s==="admin"||s==="planos"||perms[user.role].includes(s);
   const item = (k,l,ic,active)=>(canSee(k)?
     <div key={k} onClick={()=>setSec(k)} style={{padding:"9px 14px",borderRadius:8,cursor:"pointer",marginBottom:1,display:"flex",alignItems:"center",gap:10,fontSize:fs(13),fontWeight:500,background:active?"var(--sidebar-active)":"transparent",color:active?"#fff":"var(--sidebar-text)"}}>
@@ -1556,6 +1563,7 @@ function Clientes({cls,setCls,setSec,setSel,canEdit,tx,lang}) {
                     {mc.social?.linkedin&&<span title="LinkedIn">💼</span>}
                     {mc.social?.googleMaps&&<span title="Google Maps">📍</span>}
                   </span>}
+                  {(()=>{const phone=(mc.telefone||mc.compras?.whatsapp||mc.compras?.tel||"").replace(/\D/g,"");if(!phone)return null;const num=phone.startsWith("55")?phone:"55"+phone;return <a href={`https://wa.me/${num}`} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()} style={{padding:"2px 8px",borderRadius:8,background:"#25d366",color:"white",fontSize:fs(10),fontWeight:600,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:3}}>💬 WhatsApp</a>;})()}
                 </div>
               </div>
             </div>
@@ -1570,6 +1578,7 @@ function Clientes({cls,setCls,setSec,setSel,canEdit,tx,lang}) {
 function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
   const [tab,setTab]=useState("info"),[aiLoading,setAiLoading]=useState(false),[aiErr,setAiErr]=useState("");
   const [editCompras,setEditCompras]=useState(false),[newProd,setNewProd]=useState("");
+  const [newHist,setNewHist]=useState(""),[newFupDate,setNewFupDate]=useState(""),[newFupNote,setNewFupNote]=useState("");
   if(!cl) return null;
   const t = TIPOS.find(x=>x.v===cl.tipo);
   const mc = migrateClient(cl);
@@ -1579,7 +1588,12 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
     setCls(cls.map(c=>c.id===cl.id?updated:c));
   };
 
-  const changeStatus = (newStatus) => updateCl({status:newStatus});
+  const changeStatus = (newStatus) => {
+    const pipeMap={novo:"prospeccao",contatado:"contato",negociacao:"negociacao",fechado:"fechado"};
+    const newPipe=pipeMap[newStatus]||mc.pipe||"prospeccao";
+    const hist=[...(mc.historico||[]),{date:new Date().toISOString(),type:"pipeline",from:mc.pipe||"prospeccao",to:newPipe,auto:false}];
+    updateCl({status:newStatus,pipe:newPipe,historico:hist});
+  };
 
   const runAI = async () => {
     setAiLoading(true); setAiErr("");
@@ -1613,6 +1627,7 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
               <h2 style={{fontSize:fs(20),fontWeight:700,color:"var(--text-1)",margin:0}}>{mc.nome}</h2>
               <div style={{fontSize:fs(13),color:"var(--text-2)"}}>{tl(t,lang)} {mc.regiao&&`• ${mc.regiao}`}</div>
               {mc.fonte&&mc.fonte!=="manual"&&<span style={{fontSize:fs(10),padding:"2px 8px",borderRadius:10,background:"#dbeafe",color:"#1d4ed8",fontWeight:600,marginTop:4,display:"inline-block"}}>{mc.fonte}</span>}
+              {(()=>{const phone=(mc.telefone||mc.compras?.whatsapp||mc.compras?.tel||"").replace(/\D/g,"");if(!phone)return null;const num=phone.startsWith("55")?phone:"55"+phone;const msg=encodeURIComponent(lang==='en'?`Hello! I'd like to present our products/services to ${mc.nome}.`:`Olá! Gostaria de apresentar nossos produtos/serviços para a ${mc.nome}.`);return <a href={`https://wa.me/${num}?text=${msg}`} target="_blank" rel="noopener" style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 12px",borderRadius:8,background:"#25d366",color:"white",fontSize:fs(11),fontWeight:600,textDecoration:"none",marginTop:4}}>💬 WhatsApp</a>;})()}
             </div>
           </div>
           {canEdit&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -1627,6 +1642,8 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
         <button onClick={()=>setTab("social")} style={tabStyle("social")}>{tx.socialTab}</button>
         <button onClick={()=>setTab("sens")} style={tabStyle("sens")}>{tx.sensTab}</button>
         <button onClick={()=>setTab("products")} style={tabStyle("products")}>{tx.productsTab}</button>
+        <button onClick={()=>setTab("timeline")} style={tabStyle("timeline")}>📜 {tx.timelineTab}</button>
+        <button onClick={()=>setTab("followup")} style={{...tabStyle("followup"),position:"relative"}}>⏰ {tx.followupTab}{(mc.followups||[]).filter(f=>!f.done).length>0&&<span style={{position:"absolute",top:-4,right:-4,background:"#ef4444",color:"white",fontSize:fs(9),fontWeight:700,borderRadius:10,padding:"0 5px",minWidth:16,textAlign:"center"}}>{(mc.followups||[]).filter(f=>!f.done).length}</span>}</button>
       </div>
 
       <div style={{...S.card,padding:20,borderTopLeftRadius:0,marginBottom:16}}>
@@ -1777,6 +1794,86 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
             <input value={newProd} onChange={e=>setNewProd(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newProd.trim()){updateCl({produtosRelevantes:[...(mc.produtosRelevantes||[]),newProd.trim()]});setNewProd("");}}} placeholder={tx.addProduct} style={{...S.input,flex:1}}/>
             <button onClick={()=>{if(newProd.trim()){updateCl({produtosRelevantes:[...(mc.produtosRelevantes||[]),newProd.trim()]});setNewProd("");}}} style={{padding:"6px 14px",borderRadius:6,background:"#4f46e5",color:"white",border:"none",fontSize:fs(12),cursor:"pointer"}}>+</button>
           </div>}
+        </div>}
+
+        {/* Timeline Tab */}
+        {tab==="timeline"&&<div>
+          <h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>📜 {lang==='en'?"Interaction History":"Histórico de Interações"}</h3>
+          {canEdit&&<div style={{display:"flex",gap:8,marginBottom:16}}>
+            <input value={newHist} onChange={e=>setNewHist(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newHist.trim()){const h=[...mc.historico,{date:new Date().toISOString(),type:"note",text:newHist.trim()}];updateCl({historico:h});setNewHist("");}}} placeholder={lang==='en'?"What happened? e.g. Called, spoke with Maria, interested in LED panels...":"O que aconteceu? Ex: Liguei, falei com Maria, interessada em painéis LED..."} style={{...S.input,flex:1}}/>
+            <button onClick={()=>{if(newHist.trim()){const h=[...mc.historico,{date:new Date().toISOString(),type:"note",text:newHist.trim()}];updateCl({historico:h});setNewHist("");}}} style={{padding:"6px 14px",borderRadius:6,background:"#4f46e5",color:"white",border:"none",fontSize:fs(12),cursor:"pointer",whiteSpace:"nowrap"}}>+ {lang==='en'?"Add":"Adicionar"}</button>
+          </div>}
+          {/* Timeline items */}
+          {(mc.historico||[]).length===0&&<div style={{padding:24,textAlign:"center",border:"1px dashed var(--border)",borderRadius:8}}>
+            <div style={{fontSize:fs(24),marginBottom:6}}>📝</div>
+            <div style={{fontSize:fs(12),color:"var(--text-3)"}}>{lang==='en'?"No interactions recorded yet. Add notes about calls, meetings and conversations above.":"Nenhuma interação registrada. Adicione notas sobre ligações, reuniões e conversas acima."}</div>
+          </div>}
+          <div style={{position:"relative",paddingLeft:20}}>
+            {(mc.historico||[]).length>0&&<div style={{position:"absolute",left:7,top:0,bottom:0,width:2,background:"var(--border)"}}/>}
+            {[...(mc.historico||[])].reverse().map((h,i)=><div key={i} style={{marginBottom:12,position:"relative"}}>
+              <div style={{position:"absolute",left:-17,top:4,width:12,height:12,borderRadius:6,background:h.type==="pipeline"?"#3b82f6":h.type==="followup"?"#f59e0b":"#4f46e5",border:"2px solid var(--bg)"}}/>
+              <div style={{background:"var(--card-bg)",padding:10,borderRadius:8,border:"1px solid var(--border)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <span style={{fontSize:fs(10),color:"var(--text-3)"}}>{new Date(h.date).toLocaleDateString(lang==='en'?'en-US':'pt-BR',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+                  <span style={{fontSize:fs(9),padding:"1px 6px",borderRadius:8,background:h.type==="pipeline"?"#dbeafe":h.type==="followup"?"#fef3c7":"#f3e8ff",color:h.type==="pipeline"?"#1d4ed8":h.type==="followup"?"#b45309":"#7c3aed",fontWeight:600}}>{h.type==="pipeline"?(lang==='en'?"Pipeline":"Pipeline"):h.type==="followup"?"Follow-up":(lang==='en'?"Note":"Nota")}</span>
+                </div>
+                {h.type==="pipeline"?<div style={{fontSize:fs(12),color:"var(--text-2)"}}>
+                  {lang==='en'?"Moved from":"Movido de"} <strong>{(PIPELINE.find(p=>p.k===h.from)||{}).l||h.from}</strong> → <strong>{(PIPELINE.find(p=>p.k===h.to)||{}).l||h.to}</strong>
+                </div>:<div style={{fontSize:fs(12),color:"var(--text-1)"}}>
+                  {h.text}
+                </div>}
+                {canEdit&&h.type==="note"&&<button onClick={()=>{const hist=mc.historico.filter((_,j)=>j!==mc.historico.length-1-i);updateCl({historico:hist});}} style={{fontSize:fs(10),color:"var(--text-4)",background:"none",border:"none",cursor:"pointer",marginTop:4}}>🗑️</button>}
+              </div>
+            </div>)}
+          </div>
+        </div>}
+
+        {/* Follow-up Tab */}
+        {tab==="followup"&&<div>
+          <h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>⏰ Follow-ups</h3>
+          {canEdit&&<div style={{...S.card,padding:14,marginBottom:16}}>
+            <div style={{fontSize:fs(12),fontWeight:600,color:"var(--text-1)",marginBottom:8}}>{lang==='en'?"Schedule Follow-up":"Agendar Follow-up"}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <input type="datetime-local" value={newFupDate} onChange={e=>setNewFupDate(e.target.value)} style={{...S.input,flex:"0 0 200px"}}/>
+              <input value={newFupNote} onChange={e=>setNewFupNote(e.target.value)} placeholder={lang==='en'?"What to do? e.g. Call back, send proposal...":"O que fazer? Ex: Retornar ligação, enviar proposta..."} style={{...S.input,flex:1}}/>
+              <button onClick={()=>{if(newFupDate&&newFupNote.trim()){const fups=[...(mc.followups||[]),{id:"f"+Date.now(),date:newFupDate,note:newFupNote.trim(),done:false,createdAt:new Date().toISOString()}];const hist=[...(mc.historico||[]),{date:new Date().toISOString(),type:"followup",text:`Follow-up agendado: ${newFupNote.trim()} (${new Date(newFupDate).toLocaleDateString(lang==='en'?'en-US':'pt-BR')})`}];updateCl({followups:fups,historico:hist});setNewFupDate("");setNewFupNote("");}}} disabled={!newFupDate||!newFupNote.trim()} style={{padding:"6px 14px",borderRadius:6,background:newFupDate&&newFupNote.trim()?"#4f46e5":"var(--text-4)",color:"white",border:"none",fontSize:fs(12),cursor:newFupDate&&newFupNote.trim()?"pointer":"default",whiteSpace:"nowrap"}}>+ {lang==='en'?"Schedule":"Agendar"}</button>
+            </div>
+            {/* Quick buttons */}
+            <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+              {[{l:lang==='en'?"Tomorrow":"Amanhã",d:1},{l:lang==='en'?"In 3 days":"Em 3 dias",d:3},{l:lang==='en'?"In 1 week":"Em 1 semana",d:7},{l:lang==='en'?"In 2 weeks":"Em 2 semanas",d:14}].map(q=><button key={q.d} onClick={()=>{const d=new Date();d.setDate(d.getDate()+q.d);d.setHours(9,0,0);setNewFupDate(d.toISOString().slice(0,16));}} style={{padding:"3px 10px",borderRadius:6,background:"var(--accent-bg)",color:"#4f46e5",border:"none",fontSize:fs(10),cursor:"pointer",fontWeight:600}}>{q.l}</button>)}
+            </div>
+          </div>}
+
+          {/* Pending */}
+          {(()=>{const pending=(mc.followups||[]).filter(f=>!f.done).sort((a,b)=>new Date(a.date)-new Date(b.date));const done=(mc.followups||[]).filter(f=>f.done);
+          return <div>
+            {pending.length>0&&<div style={{marginBottom:16}}>
+              <div style={{fontSize:fs(12),fontWeight:600,color:"var(--text-1)",marginBottom:8}}>📌 {lang==='en'?"Pending":"Pendentes"} ({pending.length})</div>
+              {pending.map(f=>{const isLate=new Date(f.date)<new Date();return <div key={f.id} style={{...S.card,padding:10,marginBottom:6,borderLeft:`3px solid ${isLate?"#ef4444":"#f59e0b"}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:fs(12),fontWeight:600,color:"var(--text-1)"}}>{f.note}</div>
+                    <div style={{fontSize:fs(10),color:isLate?"#ef4444":"var(--text-3)",marginTop:2}}>{isLate?"⚠️ ":""}{new Date(f.date).toLocaleDateString(lang==='en'?'en-US':'pt-BR',{weekday:'short',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}{isLate?(lang==='en'?" — OVERDUE":" — ATRASADO"):""}</div>
+                  </div>
+                  {canEdit&&<div style={{display:"flex",gap:4}}>
+                    <button onClick={()=>{const fups=mc.followups.map(x=>x.id===f.id?{...x,done:true,doneAt:new Date().toISOString()}:x);const hist=[...(mc.historico||[]),{date:new Date().toISOString(),type:"followup",text:`✅ Follow-up concluído: ${f.note}`}];updateCl({followups:fups,historico:hist});}} style={{padding:"4px 10px",borderRadius:6,background:"#22c55e",color:"white",border:"none",fontSize:fs(10),cursor:"pointer",fontWeight:600}}>✅ {lang==='en'?"Done":"Feito"}</button>
+                    <button onClick={()=>{const fups=mc.followups.filter(x=>x.id!==f.id);updateCl({followups:fups});}} style={{padding:"4px 8px",borderRadius:6,background:"var(--bg)",color:"var(--text-4)",border:"1px solid var(--border)",fontSize:fs(10),cursor:"pointer"}}>🗑️</button>
+                  </div>}
+                </div>
+              </div>;})}
+            </div>}
+            {pending.length===0&&<div style={{padding:20,textAlign:"center",border:"1px dashed var(--border)",borderRadius:8,marginBottom:16}}>
+              <div style={{fontSize:fs(20),marginBottom:4}}>✅</div>
+              <div style={{fontSize:fs(12),color:"var(--text-3)"}}>{lang==='en'?"No pending follow-ups":"Nenhum follow-up pendente"}</div>
+            </div>}
+            {done.length>0&&<div>
+              <div style={{fontSize:fs(12),fontWeight:600,color:"var(--text-3)",marginBottom:8}}>✅ {lang==='en'?"Completed":"Concluídos"} ({done.length})</div>
+              {done.slice(0,5).map(f=><div key={f.id} style={{padding:8,marginBottom:4,borderRadius:6,background:"var(--bg)",opacity:0.6}}>
+                <div style={{fontSize:fs(11),color:"var(--text-3)",textDecoration:"line-through"}}>{f.note}</div>
+                <div style={{fontSize:fs(9),color:"var(--text-4)"}}>{f.doneAt&&new Date(f.doneAt).toLocaleDateString(lang==='en'?'en-US':'pt-BR')}</div>
+              </div>)}
+            </div>}
+          </div>;})()}
         </div>}
       </div>
 
@@ -1997,6 +2094,144 @@ function Produtos({tx,lang}) {
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>{lin.map(([n,d],i)=><div key={i} style={{...S.card,padding:14,borderTop:"3px solid #4f46e5"}}><div style={{fontSize:fs(14),fontWeight:600,marginBottom:2,color:"var(--text-1)"}}>{n}</div><div style={{fontSize:fs(12),color:"var(--text-2)"}}>{d}</div></div>)}</div>
       <h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:8,color:"var(--text-1)"}}>🔗 {tx.complementary}</h3>
       {comp.map(([n,p],i)=><div key={i} style={{...S.card,padding:"8px 14px",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span style={{fontSize:fs(13),color:"var(--text-1)"}}>{n}</span><span style={{padding:"2px 8px",borderRadius:20,fontSize:fs(11),fontWeight:600,background:(pc[p])+"18",color:pc[p]}}>{tx.potential} {p}</span></div>)}
+    </div>
+  );
+}
+
+// ====== PIPELINE KANBAN ======
+function PipelineKanban({cls,setCls,setSec,setSel,canEdit,tx,lang}) {
+  const [dragId,setDragId]=useState(null);
+  const [dragOver,setDragOver]=useState(null);
+  const pt=lang!=='en';
+  const mc = cls.map(c=>migrateClient(c));
+
+  const moveTo=(clientId,newPipe)=>{
+    if(!canEdit) return;
+    const newStatus = PIPELINE_TO_STATUS[newPipe]||"novo";
+    const now = new Date().toISOString();
+    setCls(cls.map(c=>{
+      if(c.id!==clientId) return c;
+      const oldPipe = migrateClient(c).pipe||"prospeccao";
+      if(oldPipe===newPipe) return c;
+      const hist = [...(c.historico||[]),{date:now,type:"pipeline",from:oldPipe,to:newPipe,auto:true}];
+      return {...c,pipe:newPipe,status:newStatus,historico:hist};
+    }));
+  };
+
+  const onDragStart=(e,id)=>{e.dataTransfer.setData("text/plain",id);setDragId(id);};
+  const onDragEnd=()=>{setDragId(null);setDragOver(null);};
+  const onDragOverCol=(e,pipe)=>{e.preventDefault();setDragOver(pipe);};
+  const onDrop=(e,pipe)=>{e.preventDefault();const id=e.dataTransfer.getData("text/plain");if(id)moveTo(id,pipe);setDragOver(null);setDragId(null);};
+
+  // Lead score calculation
+  const calcScore=(c)=>{
+    let s=0;
+    if(c.telefone) s+=15; if(c.email) s+=15;
+    if(c.sensAI?.analyzed) s+=20;
+    if(c.avaliacoes?.google?.rating>=4) s+=10; else if(c.avaliacoes?.google?.rating>=3) s+=5;
+    if(c.social?.linkedin) s+=5; if(c.social?.instagram) s+=5; if(c.social?.website) s+=5;
+    if(c.produtosRelevantes?.length>0) s+=10;
+    if(c.historico?.length>0) s+=5;
+    const sensAnalyzed = c.sensAI?.analyzed || Object.values(c.sens||{}).some(v=>v!==3);
+    if(sensAnalyzed) s+=10;
+    return Math.min(s,100);
+  };
+
+  const scoreColor=(s)=>s>=70?"#22c55e":s>=40?"#f59e0b":"#ef4444";
+  const scoreLabel=(s)=>s>=70?(pt?"Quente 🔥":"Hot 🔥"):s>=40?(pt?"Morno ☀️":"Warm ☀️"):(pt?"Frio ❄️":"Cold ❄️");
+
+  // WhatsApp link
+  const waLink=(c)=>{
+    const phone = (c.telefone||c.compras?.whatsapp||c.compras?.tel||"").replace(/\D/g,"");
+    if(!phone) return null;
+    const num = phone.startsWith("55")?phone:"55"+phone;
+    const msg = encodeURIComponent(pt?`Olá! Sou da equipe comercial, gostaria de apresentar nossos produtos/serviços para a ${c.nome}.`:`Hello! I'm from the sales team, I'd like to present our products/services to ${c.nome}.`);
+    return `https://wa.me/${num}?text=${msg}`;
+  };
+
+  // Stats
+  const pipeStats = {};
+  PIPELINE.forEach(p=>{pipeStats[p.k]=mc.filter(c=>(c.pipe||"prospeccao")===p.k).length;});
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div>
+          <h2 style={{fontSize:fs(22),fontWeight:700,color:"var(--text-1)",margin:0}}>📋 Pipeline</h2>
+          <p style={{fontSize:fs(12),color:"var(--text-3)",marginTop:4}}>{pt?"Arraste os cards entre as colunas para atualizar o estágio":"Drag cards between columns to update the stage"}</p>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {PIPELINE.slice(0,-1).map(p=><div key={p.k} style={{textAlign:"center",padding:"4px 10px",borderRadius:8,background:"var(--card-bg)",border:"1px solid var(--border)"}}>
+            <div style={{fontSize:fs(16),fontWeight:700,color:p.c}}>{pipeStats[p.k]||0}</div>
+            <div style={{fontSize:fs(9),color:"var(--text-3)"}}>{pt?p.l:p.en}</div>
+          </div>)}
+        </div>
+      </div>
+
+      {/* Kanban Board */}
+      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:16,minHeight:"70vh"}}>
+        {PIPELINE.map(pipe=>{
+          const colClients = mc.filter(c=>(c.pipe||"prospeccao")===pipe.k).sort((a,b)=>calcScore(b)-calcScore(a));
+          const isDragTarget = dragOver===pipe.k;
+          return <div key={pipe.k}
+            onDragOver={e=>onDragOverCol(e,pipe.k)}
+            onDragLeave={()=>setDragOver(null)}
+            onDrop={e=>onDrop(e,pipe.k)}
+            style={{flex:1,minWidth:180,maxWidth:240,background:isDragTarget?"var(--accent-bg)":"var(--bg)",borderRadius:12,padding:8,border:isDragTarget?`2px dashed ${pipe.c}`:"2px solid transparent",transition:"all 0.2s"}}>
+
+            {/* Column Header */}
+            <div style={{padding:"8px 6px",marginBottom:8,borderRadius:8,background:pipe.c+"18",borderBottom:`3px solid ${pipe.c}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:fs(12),fontWeight:700,color:pipe.c}}>{pt?pipe.l:pipe.en}</span>
+                <span style={{fontSize:fs(11),fontWeight:700,color:pipe.c,background:pipe.c+"22",padding:"1px 8px",borderRadius:10}}>{colClients.length}</span>
+              </div>
+            </div>
+
+            {/* Cards */}
+            {colClients.map(c=>{
+              const score=calcScore(c);
+              const wa=waLink(c);
+              const tipo=TIPOS.find(t=>t.v===c.tipo);
+              const isDragging=dragId===c.id;
+              return <div key={c.id}
+                draggable={canEdit}
+                onDragStart={e=>onDragStart(e,c.id)}
+                onDragEnd={onDragEnd}
+                style={{background:"var(--card-bg)",borderRadius:8,padding:10,marginBottom:6,cursor:canEdit?"grab":"pointer",opacity:isDragging?0.4:1,border:"1px solid var(--border)",boxShadow:"0 1px 3px rgba(0,0,0,0.06)",transition:"opacity 0.2s"}}>
+
+                {/* Score Badge */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{fontSize:fs(10),padding:"1px 6px",borderRadius:8,background:scoreColor(score)+"20",color:scoreColor(score),fontWeight:700}}>{score}% {scoreLabel(score)}</span>
+                  {tipo&&<span style={{fontSize:fs(10)}} title={pt?tipo.l:tipo.en}>{tipo.i}</span>}
+                </div>
+
+                {/* Name */}
+                <div onClick={()=>{setSel(c);setSec("detalhe");}} style={{fontSize:fs(12),fontWeight:600,color:"var(--text-1)",marginBottom:4,cursor:"pointer",lineHeight:1.3}}>{c.nome}</div>
+
+                {/* Contact info */}
+                {(c.telefone||c.email)&&<div style={{fontSize:fs(10),color:"var(--text-3)",marginBottom:4}}>
+                  {c.telefone&&<span>📞 {c.telefone}</span>}
+                  {c.email&&<span>{c.telefone?" · ":""}✉️</span>}
+                </div>}
+
+                {/* Rating */}
+                {c.avaliacoes?.google?.rating>0&&<div style={{fontSize:fs(10),color:"#f59e0b",marginBottom:4}}>⭐ {c.avaliacoes.google.rating.toFixed(1)} ({c.avaliacoes.google.count})</div>}
+
+                {/* Followup alert */}
+                {(()=>{const fups=(c.followups||[]).filter(f=>!f.done&&new Date(f.date)<=new Date());return fups.length>0?<div style={{fontSize:fs(10),padding:"2px 6px",borderRadius:4,background:"#fee2e2",color:"#dc2626",marginBottom:4}}>⏰ {fups.length} follow-up{fups.length>1?"s":""} {pt?"pendente":"pending"}{fups.length>1?"s":""}</div>:null;})()}
+
+                {/* Action buttons */}
+                <div style={{display:"flex",gap:4,marginTop:6}}>
+                  {wa&&<a href={wa} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()} style={{padding:"3px 8px",borderRadius:6,background:"#25d366",color:"white",fontSize:fs(10),fontWeight:600,textDecoration:"none",display:"flex",alignItems:"center",gap:3}}>💬 WhatsApp</a>}
+                  <button onClick={()=>{setSel(c);setSec("detalhe");}} style={{padding:"3px 8px",borderRadius:6,background:"var(--accent-bg)",color:"#4f46e5",fontSize:fs(10),fontWeight:600,border:"none",cursor:"pointer"}}>👁️ {pt?"Ver":"View"}</button>
+                </div>
+              </div>;
+            })}
+
+            {colClients.length===0&&<div style={{padding:20,textAlign:"center",fontSize:fs(11),color:"var(--text-4)",border:"1px dashed var(--border)",borderRadius:8}}>{pt?"Arraste clientes aqui":"Drag clients here"}</div>}
+          </div>;
+        })}
+      </div>
     </div>
   );
 }
@@ -2288,6 +2523,7 @@ function App() {
     switch(sec){
       case "dashboard": return <Dashboard cls={cls} proj={proj} {...cp}/>;
       case "clientes": return <Clientes cls={cls} setCls={setCls} setSec={setSec} setSel={setSel} canEdit={canEdit} {...cp}/>;
+      case "pipeline": return <PipelineKanban cls={cls} setCls={setCls} setSec={setSec} setSel={setSel} canEdit={canEdit} {...cp}/>;
       case "detalhe": return <Radiografia cl={sel} cls={cls} setCls={setCls} setSec={setSec} canEdit={canEdit} {...cp}/>;
       case "busca": return <BuscaInteligente proj={proj} onImport={addCl} canEdit={canEdit} user={user} users={users} setUsers={setUsers} setSec={setSec} {...cp}/>;
       case "swot": return <Swot {...cp}/>;
