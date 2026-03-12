@@ -1685,9 +1685,11 @@ function BuscaInteligente({proj,onImport,canEdit,tx,lang,user,users,setUsers,set
   }
 
   function importSelected() {
-    res.filter((_,i)=>selected.has(i)).forEach(c => {
-      if(!imp.has(c.nome) && !proj.clients.some(x=>x.nome===c.nome)) doImport(c);
-    });
+    const toImport = res.filter((_,i)=>selected.has(i)).filter(c => !imp.has(c.nome) && !proj.clients.some(x=>x.nome===c.nome));
+    if(toImport.length>0) {
+      onImport(toImport);
+      setImp(prev=>new Set([...prev,...toImport.map(c=>c.nome)]));
+    }
   }
 
   const toggleSelect = (i) => setSelected(prev=>{const s=new Set(prev);s.has(i)?s.delete(i):s.add(i);return s;});
@@ -1977,7 +1979,7 @@ function App() {
   const proj=projs.find(p=>p.id===ap);
   const cls=proj?.clients||[];
   const setCls=nc=>setProjs(projs.map(p=>p.id===ap?{...p,clients:nc}:p));
-  const addCl=c=>{ if(!ap||!proj){alert(lang==='en'?"Select a project first!":"Selecione um projeto primeiro!");return;} setProjs(projs.map(p=>p.id===ap?{...p,clients:[...p.clients,c]}:p)); logAction(lang==='en'?"Import Client":"Importar Cliente",c.nome); };
+  const addCl=(c)=>{ if(!ap||!proj){alert(lang==='en'?"Select a project first!":"Selecione um projeto primeiro!");return;} if(Array.isArray(c)){setProjs(prev=>prev.map(p=>p.id===ap?{...p,clients:[...p.clients,...c]}:p));logAction(lang==='en'?"Import Clients":"Importar Clientes",c.length+" empresas");}else{setProjs(prev=>prev.map(p=>p.id===ap?{...p,clients:[...p.clients,c]}:p));logAction(lang==='en'?"Import Client":"Importar Cliente",c.nome);} };
   const canEdit = user.role==="admin"||user.role==="vendedor";
   const cp = {tx,lang};
 
