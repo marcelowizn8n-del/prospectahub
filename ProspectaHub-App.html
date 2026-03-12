@@ -400,19 +400,22 @@ const gSearchAll = async (q,reg,onProgress) => {
   return all;
 };
 
-// Brave Search API (busca na web por redes sociais)
-const gWebSearch = async (companyName, location) => {
-  const keys = getApiKeys();
-  if(!keys.braveKey) return [];
-  const query = `${companyName} ${location} site:linkedin.com OR site:instagram.com OR site:facebook.com`;
+// Brave Search API via proxy (evita CORS)
+const braveSearch = async (query, braveKey) => {
   try {
-    const r = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=10`, {
-      headers:{"Accept":"application/json","Accept-Encoding":"gzip","X-Subscription-Token":keys.braveKey}
+    const r = await fetch(`/api/brave/res/v1/web/search?q=${encodeURIComponent(query)}&count=10`, {
+      headers:{"Accept":"application/json","X-Subscription-Token":braveKey}
     });
     if(!r.ok) return [];
     const data = await r.json();
     return (data.web?.results||[]).map(r=>({link:r.url||"",title:r.title||"",snippet:r.description||""}));
   } catch { return []; }
+};
+
+const gWebSearch = async (companyName, location) => {
+  const keys = getApiKeys();
+  if(!keys.braveKey) return [];
+  return braveSearch(`${companyName} ${location} site:linkedin.com OR site:instagram.com OR site:facebook.com`, keys.braveKey);
 };
 
 // Extrair redes sociais dos resultados de busca
@@ -510,15 +513,11 @@ const gSocialDiscovery = async (query, location) => {
   ];
   for(const sq of searches) {
     try {
-      const r = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(sq)}&count=10`, {
-        headers:{"Accept":"application/json","Accept-Encoding":"gzip","X-Subscription-Token":keys.braveKey}
-      });
-      if(!r.ok) continue;
-      const data = await r.json();
-      for(const item of (data.web?.results||[])) {
-        const link = item.url||"";
+      const results = await braveSearch(sq, keys.braveKey);
+      for(const item of results) {
+        const link = item.link||"";
         const title = (item.title||"").replace(/ [-|·•].*/,"").replace(/@/,"").replace(/\(.*\)/,"").trim();
-        const snippet = item.description||"";
+        const snippet = item.snippet||"";
         if(!title || title.length < 3) continue;
         discovered.push({title, link, snippet, platform: link.includes("instagram")?"instagram":link.includes("facebook")?"facebook":"linkedin"});
       }
