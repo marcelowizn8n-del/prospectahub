@@ -2001,14 +2001,170 @@ function Produtos({tx,lang}) {
   );
 }
 
-function Dicas({tx,lang}) {
-  const d_pt=[["🇧🇷","Diferenciação Nacional","Prazo menor, personalização, sem risco cambial, suporte local."],["🏆","Credibilidade Rápida","Certificações INMETRO, laudos, garantia estendida, amostras grátis."],["🎯","Segmentação Inteligente","Comece por nichos acessíveis, conquiste cases, depois ataque maiores."],["🎁","Programa Primeiro Pedido","Desconto, frete grátis, prazo estendido, kit brindes."],["📱","Marketing de Conteúdo","Vídeos instalação, comparativos, dicas técnicas."],["🤝","Representantes Motivados","Comissão alta, bonificação, treinamento, material de qualidade."],["🛡️","Pós-Venda Diferencial","Suporte WhatsApp, garantia fácil, reposição rápida."],["🚀","Tendências","Smart lighting, eficiência energética, energia solar, human-centric."]];
-  const d_en=[["🇧🇷","National Differentiation","Shorter deadlines, customization, no exchange risk, local support."],["🏆","Quick Credibility","INMETRO certifications, reports, extended warranty, free samples."],["🎯","Smart Segmentation","Start with accessible niches, win cases, then target bigger ones."],["🎁","First Order Program","Discount, free shipping, extended terms, gift kit."],["📱","Content Marketing","Installation videos, comparisons, technical tips."],["🤝","Motivated Representatives","High commission, bonuses, training, quality material."],["🛡️","Differential After-Sales","WhatsApp support, easy warranty, fast replacement."],["🚀","Trends","Smart lighting, energy efficiency, solar energy, human-centric."]];
-  const d = lang==='en'?d_en:d_pt;
+function Dicas({tx,lang,cls=[],proj}) {
+  const [openType,setOpenType]=useState(null);
+  const pt = lang!=='en';
+  const mc = cls.map(c=>migrateClient(c));
+
+  // ===== SEÇÃO 1: ANÁLISE INTELIGENTE DO PROJETO =====
+  const genInsights = () => {
+    if(!mc.length) return [];
+    const insights = [];
+    // Status distribution
+    const statusCount = {};
+    mc.forEach(c=>{statusCount[c.status]=(statusCount[c.status]||0)+1;});
+    const novo = statusCount.novo||0;
+    const contatado = statusCount.contatado||0;
+    const negociacao = statusCount.negociacao||0;
+    const fechado = statusCount.fechado||0;
+    const pctNovo = Math.round(novo/mc.length*100);
+    if(pctNovo>60) insights.push({icon:"🚨",type:"action",title:pt?"Muitos clientes sem contato":"Many uncontacted clients",desc:pt?`${pctNovo}% dos seus clientes (${novo} de ${mc.length}) ainda estão como "Novo". Priorize o primeiro contato — cada dia sem abordar é uma oportunidade que esfria.`:`${pctNovo}% of your clients (${novo} of ${mc.length}) are still "New". Prioritize first contact — every day without reaching out is a cooling opportunity.`,color:"#ef4444"});
+    if(negociacao>0) insights.push({icon:"🤝",type:"opportunity",title:pt?`${negociacao} cliente${negociacao>1?"s":""} em negociação`:`${negociacao} client${negociacao>1?"s":""} negotiating`,desc:pt?`Foque atenção neles — estão mais próximos de fechar. Prepare propostas personalizadas e faça follow-up frequente.`:`Focus attention on them — they're closest to closing. Prepare personalized proposals and follow up frequently.`,color:"#f59e0b"});
+    if(fechado>0) insights.push({icon:"✅",type:"success",title:pt?`${fechado} cliente${fechado>1?"s":""} fechado${fechado>1?"s":""}`:`${fechado} closed client${fechado>1?"s":""}`,desc:pt?`Ótimo! Use esses cases de sucesso como referência ao abordar novos clientes do mesmo tipo. Depoimentos e resultados reais vendem.`:`Great! Use these success stories as references when approaching new clients of the same type. Testimonials and real results sell.`,color:"#22c55e"});
+
+    // Sensibilidades agregadas (só dos analisados)
+    const analyzed = mc.filter(c=>c.sensAI?.analyzed||Object.values(c.sens||{}).some(v=>v!==3));
+    if(analyzed.length>=3){
+      const avg = {};
+      SENS.forEach(s=>{avg[s.k]=analyzed.reduce((a,c)=>a+(c.sens?.[s.k]||3),0)/analyzed.length;});
+      const sorted = Object.entries(avg).sort((a,b)=>b[1]-a[1]);
+      const top = sorted[0];
+      const topSens = SENS.find(s=>s.k===top[0]);
+      if(topSens && top[1]>=3.5) {
+        const sensNames = {preco:pt?"preço":"price",qualidade:pt?"qualidade":"quality",entrega:pt?"prazo de entrega":"delivery time",estoque:pt?"estoque":"stock",marca:pt?"marca":"brand",posvenda:pt?"pós-venda":"after-sales",custom:pt?"personalização":"customization",credito:pt?"crédito/prazo":"credit/terms"};
+        const tipsBySens = {
+          preco:pt?"Lidere com condições especiais, descontos por volume e comparativos de custo-benefício.":"Lead with special conditions, volume discounts and cost-benefit comparisons.",
+          qualidade:pt?"Destaque certificações, garantias, testes de qualidade e diferenciais técnicos do produto.":"Highlight certifications, warranties, quality tests and product technical differentials.",
+          entrega:pt?"Enfatize pronta entrega, estoque local e prazos garantidos. Logística ágil é diferencial.":"Emphasize immediate delivery, local stock and guaranteed deadlines. Agile logistics is a differential.",
+          estoque:pt?"Mostre disponibilidade constante, reposição automática e compromisso com ruptura zero.":"Show constant availability, automatic replenishment and commitment to zero stockout.",
+          marca:pt?"Invista em materiais de marketing profissionais, cases de sucesso e presença digital forte.":"Invest in professional marketing materials, success stories and strong digital presence.",
+          posvenda:pt?"Ofereça suporte rápido (WhatsApp), garantia estendida e programa de assistência técnica.":"Offer fast support (WhatsApp), extended warranty and technical assistance program.",
+          custom:pt?"Mostre capacidade de personalização: embalagens, especificações, rótulo próprio, projetos sob medida.":"Show customization capability: packaging, specs, private label, custom projects.",
+          credito:pt?"Ofereça condições flexíveis: parcelamento, prazo estendido, desconto à vista, crédito facilitado.":"Offer flexible terms: installments, extended deadlines, cash discounts, easy credit."
+        };
+        insights.push({icon:topSens.i,type:"sensitivity",title:pt?`Seus clientes são mais sensíveis a ${sensNames[top[0]]} (média ${top[1].toFixed(1)}/5)`:`Your clients are most sensitive to ${sensNames[top[0]]} (avg ${top[1].toFixed(1)}/5)`,desc:tipsBySens[top[0]]||"",color:topSens.c});
+      }
+      const bottom = sorted[sorted.length-1];
+      const bottomSens = SENS.find(s=>s.k===bottom[0]);
+      if(bottomSens && bottom[1]<=2.5) {
+        const sensNames = {preco:pt?"preço":"price",qualidade:pt?"qualidade":"quality",entrega:pt?"prazo de entrega":"delivery time",estoque:pt?"estoque":"stock",marca:pt?"marca":"brand",posvenda:pt?"pós-venda":"after-sales",custom:pt?"personalização":"customization",credito:pt?"crédito":"credit"};
+        insights.push({icon:"💡",type:"insight",title:pt?`Baixa sensibilidade a ${sensNames[bottom[0]]} (média ${bottom[1].toFixed(1)}/5)`:`Low sensitivity to ${sensNames[bottom[0]]} (avg ${bottom[1].toFixed(1)}/5)`,desc:pt?`Isso significa que esse fator não é decisivo para a maioria. Não precisa ser seu foco principal na negociação.`:`This means this factor isn't decisive for most. It doesn't need to be your main focus in negotiations.`,color:"#6b7280"});
+      }
+    } else if(mc.length>3) {
+      insights.push({icon:"🤖",type:"action",title:pt?"Analise seus clientes com IA":"Analyze your clients with AI",desc:pt?`Apenas ${analyzed.length} de ${mc.length} clientes têm sensibilidades analisadas. Vá na Radiografia de cada cliente e clique "Analisar com IA" para obter insights reais de como abordar cada um.`:`Only ${analyzed.length} of ${mc.length} clients have analyzed sensitivities. Go to each client's X-Ray and click "Analyze with AI" to get real insights on how to approach each one.`,color:"#7c3aed"});
+    }
+
+    // Tipo distribution
+    const tipoCount = {};
+    mc.forEach(c=>{tipoCount[c.tipo]=(tipoCount[c.tipo]||0)+1;});
+    const topTipo = Object.entries(tipoCount).sort((a,b)=>b[1]-a[1])[0];
+    if(topTipo){
+      const tipoObj = TIPOS.find(t=>t.v===topTipo[0]);
+      if(tipoObj && topTipo[1]>=3) insights.push({icon:tipoObj.i,type:"segment",title:pt?`Maioria dos clientes: ${tipoObj.l} (${topTipo[1]})`:`Most clients: ${tipoObj.en} (${topTipo[1]})`,desc:pt?`Considere criar uma proposta padrão otimizada para ${tipoObj.l.toLowerCase()}s — material, condições e abordagem específicas para esse perfil.`:`Consider creating a standard proposal optimized for ${tipoObj.en.toLowerCase()}s — specific material, conditions and approach for this profile.`,color:"#3b82f6"});
+    }
+
+    // Contato
+    const semTel = mc.filter(c=>!c.telefone&&!c.email).length;
+    if(semTel>0 && semTel/mc.length>0.3) insights.push({icon:"📞",type:"action",title:pt?`${semTel} clientes sem telefone/email`:`${semTel} clients without phone/email`,desc:pt?`${Math.round(semTel/mc.length*100)}% dos clientes não têm dados de contato. Use a Busca Profunda com Brave Search para enriquecer ou busque manualmente no Google/LinkedIn.`:`${Math.round(semTel/mc.length*100)}% of clients have no contact data. Use Deep Search with Brave to enrich or search manually on Google/LinkedIn.`,color:"#dc2626"});
+
+    return insights;
+  };
+  const insights = genInsights();
+
+  // ===== SEÇÃO 2: GUIA POR TIPO DE EMPRESA =====
+  const guideByType = {
+    fabricante:{i:"🏭",tips:pt?["Foque em parcerias de longo prazo e co-desenvolvimento de produtos","Ofereça exclusividade regional ou de linha em troca de condições","Demonstre capacidade técnica e certificações do seu produto","Agende visita técnica à fábrica — decisores industriais valorizam ver processos","Proposta deve incluir: amostras, ficha técnica, laudos e cases"]:["Focus on long-term partnerships and product co-development","Offer regional or line exclusivity in exchange for conditions","Demonstrate technical capability and product certifications","Schedule a factory tour — industrial decision makers value seeing processes","Proposal should include: samples, technical sheet, reports and cases"]},
+    importador:{i:"🚢",tips:pt?["Apresente vantagens competitivas vs importados: prazo, suporte local, sem câmbio","Mostre cálculos de custo total (produto + frete + imposto + estoque)","Ofereça exclusividade de marca ou linha para fidelizar","Esteja preparado para negociar volumes maiores com condições progressivas","Tenha material em inglês se lidar com decisores internacionais"]:["Present competitive advantages vs imports: deadline, local support, no exchange","Show total cost calculations (product + freight + tax + stock)","Offer brand or line exclusivity to build loyalty","Be prepared to negotiate larger volumes with progressive conditions","Have English material if dealing with international decision makers"]},
+    revendedor:{i:"🏪",tips:pt?["Ofereça margem atraente e tabela de preços clara","Disponibilize material de PDV: display, catálogo, treinamento","Crie programa de bonificação por volume ou meta","Garanta reposição rápida — revenda não pode ficar sem estoque","Ofereça suporte técnico para o time de vendas da revenda"]:["Offer attractive margins and clear price list","Provide POS materials: displays, catalogs, training","Create bonus program per volume or target","Guarantee quick restocking — resellers can't be out of stock","Offer technical support for the reseller's sales team"]},
+    lojista:{i:"🏬",tips:pt?["Visite a loja pessoalmente para entender o público e o mix","Ofereça produto + expositor + material de PDV como kit","Condição especial no primeiro pedido (frete grátis, prazo estendido)","Fotos de como o produto fica exposto em outras lojas similares","Destaque giro rápido do produto e margem de lucro"]:["Visit the store personally to understand the audience and mix","Offer product + display + POS material as a kit","Special condition on first order (free shipping, extended terms)","Photos of how the product looks displayed in similar stores","Highlight fast product turnover and profit margin"]},
+    ecommerce:{i:"🛒",tips:pt?["Forneça fotos profissionais, descrições detalhadas e EAN/SKU","Ofereça dropshipping ou fulfillment para reduzir risco do e-commerce","Preço competitivo é fundamental — e-commerce compara facilmente","Garanta logística eficiente: prazo curto e embalagem adequada","Disponibilize API ou planilha para integração de catálogo"]:["Provide professional photos, detailed descriptions and EAN/SKU","Offer dropshipping or fulfillment to reduce e-commerce risk","Competitive pricing is key — e-commerce compares easily","Ensure efficient logistics: short deadlines and proper packaging","Provide API or spreadsheet for catalog integration"]},
+    construtora:{i:"🏗️",tips:pt?["Foque em projeto + fornecimento de grande volume","Ofereça assessoria técnica gratuita (cálculo luminotécnico, etc.)","Prazo de entrega e confiabilidade são críticos para obra","Apresente cases de obras similares com fotos e depoimentos","Condições de pagamento alinhadas com o cronograma da obra"]:["Focus on project + large volume supply","Offer free technical advice (lighting calculations, etc.)","Delivery deadline and reliability are critical for construction","Present cases of similar projects with photos and testimonials","Payment terms aligned with the construction schedule"]},
+    arquiteto:{i:"📐",tips:pt?["Destaque design, qualidade estética e personalização","Ofereça projetos luminotécnicos gratuitos como valor agregado","Amostras físicas são essenciais — arquiteto precisa ver/tocar","Crie programa de indicação com comissão ou benefício","Mantenha catálogo atualizado com renders e aplicações reais"]:["Highlight design, aesthetic quality and customization","Offer free lighting projects as added value","Physical samples are essential — architects need to see/touch","Create referral program with commission or benefit","Keep catalog updated with renders and real applications"]},
+    instalador:{i:"⚡",tips:pt?["Ofereça preço especial para instalador (preço de parceiro)","Treinamento técnico gratuito agrega valor e fideliza","Kit instalador: produto + material de apoio + cartão de visita co-branded","Programa de indicação: instalador indica, ganha bônus","Suporte técnico prioritário via WhatsApp/telefone"]:["Offer special installer pricing (partner price)","Free technical training adds value and builds loyalty","Installer kit: product + support material + co-branded business card","Referral program: installer refers, earns bonus","Priority technical support via WhatsApp/phone"]},
+    atacadista:{i:"📦",tips:pt?["Negociação por volume com escala de desconto progressiva","Logística: entrega programada, paletização, nota fiscal otimizada","Exclusividade territorial pode ser moeda de troca valiosa","Demonstre sell-through (giro) do produto no varejo","Ofereça suporte de marketing para ajudar o atacadista a vender"]:["Volume negotiation with progressive discount scale","Logistics: scheduled delivery, palletization, optimized invoicing","Territorial exclusivity can be a valuable bargaining chip","Demonstrate product sell-through (turnover) at retail","Offer marketing support to help wholesaler sell"]},
+    prestador:{i:"🔧",tips:pt?["Ofereça condições de parceiro com preço diferenciado","Treinamento técnico gratuito no seu produto","Material de divulgação co-branded para o prestador usar","Garantia estendida quando instalado por prestador certificado","Programa de fidelidade com pontos por volume comprado"]:["Offer partner conditions with differentiated pricing","Free technical training on your product","Co-branded marketing material for the provider to use","Extended warranty when installed by certified provider","Loyalty program with points per volume purchased"]}
+  };
+
+  // ===== SEÇÃO 3: DICAS GERAIS B2B =====
+  const generalTips = pt ? [
+    ["🎯","Pesquise antes de ligar","Antes de abordar, estude o cliente: site, redes sociais, avaliações. Mostre que você conhece o negócio dele."],
+    ["📞","Primeiro contato: seja breve e objetivo","Apresente-se, diga o motivo da ligação e pergunte se é um bom momento. Não venda no primeiro contato — agende uma conversa."],
+    ["👂","Escute mais do que fala","Faça perguntas abertas: 'Qual seu maior desafio hoje?', 'O que você busca em um fornecedor?'. As respostas guiam sua proposta."],
+    ["📊","Use dados, não achismos","Mostre números: economia que o cliente terá, comparativos, cases reais. Dados geram confiança."],
+    ["⏰","Follow-up é obrigatório","80% das vendas acontecem após o 5º follow-up. Não desista após a primeira tentativa. Agende retornos."],
+    ["🤝","Construa relacionamento","Vendas B2B são baseadas em confiança. Envie conteúdos relevantes, parabenize em datas importantes, seja parceiro."],
+    ["📝","Registre tudo","Anote cada conversa, preferência e promessa. Use o ProspectaHub para manter o histórico atualizado."],
+    ["🏆","Peça indicações","Após uma venda bem-sucedida, peça indicações. Cliente satisfeito é sua melhor propaganda."]
+  ] : [
+    ["🎯","Research before calling","Before approaching, study the client: website, social media, reviews. Show you know their business."],
+    ["📞","First contact: be brief and objective","Introduce yourself, state the reason for calling and ask if it's a good time. Don't sell on first contact — schedule a meeting."],
+    ["👂","Listen more than you talk","Ask open questions: 'What's your biggest challenge today?', 'What do you look for in a supplier?'. Answers guide your proposal."],
+    ["📊","Use data, not guesses","Show numbers: savings the client will have, comparisons, real cases. Data builds trust."],
+    ["⏰","Follow-up is mandatory","80% of sales happen after the 5th follow-up. Don't give up after the first attempt. Schedule callbacks."],
+    ["🤝","Build relationships","B2B sales are trust-based. Send relevant content, congratulate on important dates, be a partner."],
+    ["📝","Record everything","Note every conversation, preference and promise. Use ProspectaHub to keep history updated."],
+    ["🏆","Ask for referrals","After a successful sale, ask for referrals. A satisfied customer is your best advertisement."]
+  ];
+
+  // Tipos presentes no projeto
+  const tiposPresentes = [...new Set(mc.map(c=>c.tipo))].filter(t=>guideByType[t]);
+
   return (
     <div>
-      <h2 style={{fontSize:fs(22),fontWeight:700,marginBottom:16,color:"var(--text-1)"}}>{tx.tipsTitle}</h2>
-      {d.map(([ic,t,desc],i)=><div key={i} style={{...S.card,padding:16,marginBottom:8,display:"flex",gap:12,alignItems:"flex-start"}}><span style={{fontSize:fs(28),flexShrink:0}}>{ic}</span><div><h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:3,color:"var(--text-1)"}}>{t}</h3><p style={{fontSize:fs(13),color:"var(--text-2)",lineHeight:1.5}}>{desc}</p></div></div>)}
+      <h2 style={{fontSize:fs(22),fontWeight:700,marginBottom:6,color:"var(--text-1)"}}>🏆 {pt?"Dicas de Sucesso":"Success Tips"}</h2>
+      <p style={{fontSize:fs(12),color:"var(--text-3)",marginBottom:20}}>{pt?"Insights inteligentes e dicas práticas para aumentar suas chances de fechar negócio":"Smart insights and practical tips to increase your chances of closing deals"}</p>
+
+      {/* SEÇÃO 1: Análise Inteligente */}
+      {mc.length>0&&<div style={{marginBottom:24}}>
+        <h3 style={{fontSize:fs(16),fontWeight:700,color:"var(--text-1)",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>📊 {pt?"Análise Inteligente do Projeto":"Smart Project Analysis"}{proj&&<span style={{fontSize:fs(11),fontWeight:400,color:"var(--text-3)"}}>— {proj.nome} ({mc.length} {pt?"empresas":"companies"})</span>}</h3>
+        {insights.length>0?insights.map((ins,i)=><div key={i} style={{...S.card,padding:14,marginBottom:8,borderLeft:`4px solid ${ins.color}`,display:"flex",gap:12,alignItems:"flex-start"}}>
+          <span style={{fontSize:fs(24),flexShrink:0}}>{ins.icon}</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:fs(13),fontWeight:600,color:"var(--text-1)",marginBottom:3}}>{ins.title}</div>
+            <div style={{fontSize:fs(12),color:"var(--text-2)",lineHeight:1.6}}>{ins.desc}</div>
+          </div>
+          <span style={{padding:"2px 8px",borderRadius:10,fontSize:fs(9),fontWeight:700,background:ins.type==="action"?"#fee2e2":ins.type==="opportunity"?"#fef3c7":ins.type==="success"?"#dcfce7":"#dbeafe",color:ins.type==="action"?"#dc2626":ins.type==="opportunity"?"#b45309":ins.type==="success"?"#16a34a":"#1d4ed8",whiteSpace:"nowrap"}}>{ins.type==="action"?(pt?"Ação":"Action"):ins.type==="opportunity"?(pt?"Oportunidade":"Opportunity"):ins.type==="success"?(pt?"Sucesso":"Success"):(pt?"Insight":"Insight")}</span>
+        </div>):<div style={{...S.card,padding:20,textAlign:"center"}}><span style={{fontSize:fs(12),color:"var(--text-3)"}}>{pt?"Importe clientes para ver insights inteligentes aqui":"Import clients to see smart insights here"}</span></div>}
+      </div>}
+      {mc.length===0&&<div style={{...S.card,padding:24,textAlign:"center",marginBottom:24}}>
+        <div style={{fontSize:fs(32),marginBottom:8}}>📊</div>
+        <div style={{fontSize:fs(14),fontWeight:600,color:"var(--text-1)",marginBottom:6}}>{pt?"Nenhum cliente no projeto":"No clients in project"}</div>
+        <div style={{fontSize:fs(12),color:"var(--text-3)"}}>{ pt?"Use a Busca Inteligente para importar empresas e ver análises personalizadas aqui":"Use Smart Search to import companies and see personalized analysis here"}</div>
+      </div>}
+
+      {/* SEÇÃO 2: Guia por Tipo */}
+      <div style={{marginBottom:24}}>
+        <h3 style={{fontSize:fs(16),fontWeight:700,color:"var(--text-1)",marginBottom:12}}>🎯 {pt?"Guia de Abordagem por Tipo de Empresa":"Approach Guide by Company Type"}</h3>
+        <p style={{fontSize:fs(11),color:"var(--text-3)",marginBottom:12}}>{pt?"Dicas práticas de como abordar cada perfil de empresa. Clique para expandir.":"Practical tips on how to approach each company profile. Click to expand."}</p>
+        {(tiposPresentes.length>0?tiposPresentes:Object.keys(guideByType)).map(tipo=>{
+          const g=guideByType[tipo]; if(!g) return null;
+          const tipoObj=TIPOS.find(t=>t.v===tipo);
+          const count=mc.filter(c=>c.tipo===tipo).length;
+          const isOpen=openType===tipo;
+          return <div key={tipo} style={{...S.card,marginBottom:6,overflow:"hidden"}}>
+            <div onClick={()=>setOpenType(isOpen?null:tipo)} style={{padding:14,cursor:"pointer",display:"flex",alignItems:"center",gap:10,justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:fs(22)}}>{g.i}</span>
+                <span style={{fontSize:fs(14),fontWeight:600,color:"var(--text-1)"}}>{tipoObj?(pt?tipoObj.l:tipoObj.en):tipo}</span>
+                {count>0&&<span style={{padding:"1px 8px",borderRadius:10,background:"#dbeafe",color:"#1d4ed8",fontSize:fs(10),fontWeight:700}}>{count} {pt?"cliente":"client"}{count>1?"s":""}</span>}
+              </div>
+              <span style={{fontSize:fs(16),color:"var(--text-3)",transform:isOpen?"rotate(180deg)":"rotate(0)",transition:"transform 0.2s"}}>▼</span>
+            </div>
+            {isOpen&&<div style={{padding:"0 14px 14px",borderTop:"1px solid var(--border)"}}>
+              {g.tips.map((tip,j)=><div key={j} style={{display:"flex",gap:8,alignItems:"flex-start",padding:"8px 0",borderBottom:j<g.tips.length-1?"1px solid var(--border)":"none"}}>
+                <span style={{fontSize:fs(12),color:"#4f46e5",fontWeight:700,flexShrink:0}}>{j+1}.</span>
+                <span style={{fontSize:fs(12),color:"var(--text-2)",lineHeight:1.5}}>{tip}</span>
+              </div>)}
+            </div>}
+          </div>;
+        })}
+      </div>
+
+      {/* SEÇÃO 3: Dicas Gerais */}
+      <div>
+        <h3 style={{fontSize:fs(16),fontWeight:700,color:"var(--text-1)",marginBottom:12}}>💡 {pt?"Dicas Gerais de Vendas B2B":"General B2B Sales Tips"}</h3>
+        {generalTips.map(([ic,t,desc],i)=><div key={i} style={{...S.card,padding:14,marginBottom:6,display:"flex",gap:12,alignItems:"flex-start"}}><span style={{fontSize:fs(24),flexShrink:0}}>{ic}</span><div><h3 style={{fontSize:fs(13),fontWeight:600,marginBottom:2,color:"var(--text-1)"}}>{t}</h3><p style={{fontSize:fs(12),color:"var(--text-2)",lineHeight:1.5,margin:0}}>{desc}</p></div></div>)}
+      </div>
     </div>
   );
 }
@@ -2138,7 +2294,7 @@ function App() {
       case "estrategias": return <Estrategias {...cp}/>;
       case "materiais": return <Materiais {...cp}/>;
       case "produtos": return <Produtos {...cp}/>;
-      case "dicas": return <Dicas {...cp}/>;
+      case "dicas": return <Dicas cls={cls} proj={proj} {...cp}/>;
       default: return <Dashboard cls={cls} proj={proj} {...cp}/>;
     }
   };
