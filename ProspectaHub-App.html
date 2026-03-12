@@ -526,15 +526,41 @@ const gSocialDiscovery = async (query, location) => {
   return discovered;
 };
 
+// Extrair telefone e email de texto (snippets de busca)
+const extractContactFromText = (text) => {
+  const phoneMatch = text.match(/(?:\+55\s?)?(?:\(?\d{2}\)?\s?)?\d{4,5}[-.\s]?\d{4}/);
+  const emailMatch = text.match(/[\w.-]+@[\w.-]+\.\w{2,}/);
+  return { phone: phoneMatch?phoneMatch[0].trim():"", email: emailMatch?emailMatch[0].trim():"" };
+};
+
+// Buscar dados de contato via Brave para empresas sem telefone/email
+const enrichWithContact = async (companyName, braveKey) => {
+  if(!braveKey) return {};
+  try {
+    const results = await braveSearch(`${companyName} telefone email contato`, braveKey);
+    let phone="", email="", address="", website="";
+    for(const r of results) {
+      const text = (r.title||"")+" "+(r.snippet||"");
+      if(!phone){const p=extractContactFromText(text);if(p.phone)phone=p.phone;}
+      if(!email){const e=extractContactFromText(text);if(e.email)email=e.email;}
+      const addrMatch = text.match(/(?:Rua|Av\.|Avenida|R\.|Al\.|Alameda|Praça|Estrada|Rod\.)[\w\s,.-]+(?:\d{5}[-.]?\d{3})?/i);
+      if(!address && addrMatch) address=addrMatch[0].trim();
+      if(!website && r.link && !r.link.includes("instagram") && !r.link.includes("facebook") && !r.link.includes("linkedin")) website=r.link;
+    }
+    return {phone,email,address,website};
+  } catch { return {}; }
+};
+
 // Converter descoberta social em cliente
-const socialToClient = (disc) => {
-  const social = {website:"",linkedin:"",instagram:"",facebook:"",googleMaps:""};
+const socialToClient = (disc, enriched={}) => {
+  const social = {website:enriched.website||"",linkedin:"",instagram:"",facebook:"",googleMaps:""};
   const nome = disc.title;
   disc.links.forEach(d => { social[d.platform] = d.link; });
+  const snippetContact = extractContactFromText(disc.snippet||"");
   return newClient({
     id:"c"+Date.now()+Math.random().toString(36).slice(2),
-    nome, contato:"", telefone:"", email:"",
-    tipo:"lojista", regiao:"", endereco:"",
+    nome, contato:"", telefone:enriched.phone||snippetContact.phone||"", email:enriched.email||snippetContact.email||"",
+    tipo:"lojista", regiao:"", endereco:enriched.address||"",
     status:"novo", sens:ds(),
     social, compras:{nome:"",cargo:"",email:"",tel:"",whatsapp:""},
     avaliacoes:{google:{rating:0,count:0},reviewSummary:""},
@@ -551,16 +577,27 @@ const deepSearch = async (q,reg,onProgress,includeWeb=false) => {
   const clients = places.map(p => placeToClient(p));
   const knownNames = new Set(clients.map(c => c.nome.toLowerCase()));
 
-  if(includeWeb && getApiKeys().braveKey) {
-    // Fase 2: Enriquecer resultados do Places com redes sociais
+  const keys = getApiKeys();
+  if(includeWeb && keys.braveKey) {
+    // Fase 2: Enriquecer resultados do Places com redes sociais + contatos
     onProgress({stage:"social",pct:45});
-    for(let i=0; i<Math.min(clients.length,15); i++) {
-      onProgress({stage:"social",pct:45+Math.floor((i/Math.min(clients.length,15))*20)});
+    const placesToEnrich = Math.min(clients.length,15);
+    for(let i=0; i<placesToEnrich; i++) {
+      onProgress({stage:"social",pct:45+Math.floor((i/placesToEnrich)*20)});
       const webResults = await gWebSearch(clients[i].nome, reg);
       const socialLinks = extractSocialLinks(webResults);
       if(socialLinks.linkedin) clients[i].social.linkedin = socialLinks.linkedin;
       if(socialLinks.instagram) clients[i].social.instagram = socialLinks.instagram;
       if(socialLinks.facebook) clients[i].social.facebook = socialLinks.facebook;
+      // Enriquecer com contato se não tem telefone/email do Places
+      if(!clients[i].telefone && !clients[i].email) {
+        try {
+          const contact = await enrichWithContact(clients[i].nome, keys.braveKey);
+          if(contact.phone) clients[i].telefone = contact.phone;
+          if(contact.email) clients[i].email = contact.email;
+          if(contact.website && !clients[i].social.website) clients[i].social.website = contact.website;
+        } catch {}
+      }
     }
 
     // Fase 3: Descobrir empresas NOVAS via redes sociais (não encontradas no Places)
@@ -581,13 +618,18 @@ const deepSearch = async (q,reg,onProgress,includeWeb=false) => {
       }
       if(!matched) grouped[key] = {title:sr.title, links:[{platform:sr.platform, link:sr.link}], snippet:sr.snippet};
     }
-    // Converter em clientes
-    onProgress({stage:"web",pct:85});
-    for(const [key, disc] of Object.entries(grouped)) {
-      if(!knownNames.has(key)) {
-        clients.push(socialToClient(disc));
-        knownNames.add(key);
-      }
+    // Converter em clientes com enriquecimento de contato
+    onProgress({stage:"web",pct:80});
+    const groupedEntries = Object.entries(grouped).filter(([key])=>!knownNames.has(key));
+    const totalToEnrich = groupedEntries.length;
+    let enriched = 0;
+    for(const [key, disc] of groupedEntries) {
+      enriched++;
+      onProgress({stage:"web",pct:80+Math.round((enriched/Math.max(totalToEnrich,1))*15)});
+      let contactData = {};
+      try { contactData = await enrichWithContact(disc.title, keys.braveKey); } catch {}
+      clients.push(socialToClient(disc, contactData));
+      knownNames.add(key);
     }
   }
 
@@ -1443,15 +1485,31 @@ function Clientes({cls,setCls,setSec,setSel,canEdit,tx,lang}) {
         </div>
       )}
       <div style={{display:"grid",gap:10}}>
-        {cls.map(c=>{const t=TIPOS.find(x=>x.v===c.tipo);return(
+        {cls.map(c=>{const t=TIPOS.find(x=>x.v===c.tipo);const mc=migrateClient(c);const hasSocial=mc.social?.instagram||mc.social?.facebook||mc.social?.linkedin||mc.social?.website;return(
           <div key={c.id} onClick={()=>{setSel(c);setSec("detalhe");}} style={{...S.card,padding:14,cursor:"pointer",borderLeft:`4px solid ${(STATUS.find(p=>p.k===c.status)||STATUS[0]).c}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:fs(14),fontWeight:600,color:"var(--text-1)"}}>{t?.i} {c.nome}</div>
-                <div style={{fontSize:fs(12),color:"var(--text-2)",marginTop:2}}>{c.contato}{c.email?" • "+c.email:""}</div>
-                <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span style={{fontSize:fs(15),fontWeight:600,color:"var(--text-1)"}}>{t?.i} {c.nome}</span>
+                  {mc.avaliacoes?.google?.rating>0&&<span style={{fontSize:fs(11),color:"#f59e0b"}}>⭐ {mc.avaliacoes.google.rating.toFixed(1)}</span>}
+                  <span style={{fontSize:fs(10),padding:"1px 6px",borderRadius:10,background:mc.fonte==="social_discovery"?"#fce7f3":"#dbeafe",color:mc.fonte==="social_discovery"?"#be185d":"#1d4ed8",fontWeight:600}}>{mc.fonte==="social_discovery"?"📱 Social":"📍 Places"}</span>
+                </div>
+                {(mc.telefone||mc.email||mc.contato)&&<div style={{fontSize:fs(12),color:"var(--text-2)",marginTop:3}}>
+                  {mc.telefone&&<span>📞 {mc.telefone}</span>}
+                  {mc.email&&<span>{mc.telefone?" • ":""}✉️ {mc.email}</span>}
+                  {mc.contato&&!mc.telefone&&!mc.email&&<span>👤 {mc.contato}</span>}
+                </div>}
+                {mc.endereco&&<div style={{fontSize:fs(11),color:"var(--text-3)",marginTop:2}}>📍 {mc.endereco.length>80?mc.endereco.slice(0,80)+"...":mc.endereco}</div>}
+                <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={S.pill((STATUS.find(p=>p.k===c.status)||STATUS[0]).c)}>{tl(STATUS.find(p=>p.k===c.status)||STATUS[0],lang)}</span>
                   {c.remoto&&<span style={S.pill("#3b82f6")}>{tx.remote}</span>}
+                  {hasSocial&&<span style={{display:"flex",gap:4,fontSize:fs(12)}}>
+                    {mc.social?.website&&<span title="Website">🌐</span>}
+                    {mc.social?.instagram&&<span title="Instagram">📷</span>}
+                    {mc.social?.facebook&&<span title="Facebook">👥</span>}
+                    {mc.social?.linkedin&&<span title="LinkedIn">💼</span>}
+                    {mc.social?.googleMaps&&<span title="Google Maps">📍</span>}
+                  </span>}
                 </div>
               </div>
             </div>
