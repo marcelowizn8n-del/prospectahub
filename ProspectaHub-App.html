@@ -152,6 +152,21 @@ const TX = {
     analyzeAI:'Analisar com IA', analyzingAI:'Analisando...', aiAnalyzed:'Analisado por IA',
     aiConfidence:'Confiança', aiReasoning:'Justificativa', aiSources:'Fontes',
     notAnalyzed:'Não analisado ainda', reanalyze:'Re-analisar',
+    sensExplainTitle:'O que são Sensibilidades?',
+    sensExplain:'Sensibilidades indicam o quanto cada fator influencia a decisão de compra desta empresa. Escala de 1 (baixa importância) a 5 (altíssima importância). Use para personalizar sua abordagem comercial.',
+    sensDescPreco:'Quanto o preço pesa na decisão de compra. Nota 5 = só compra o mais barato.',
+    sensDescQualidade:'Quanto a qualidade do produto importa. Nota 5 = exige o melhor, mesmo custando mais.',
+    sensDescEntrega:'Quanto o prazo de entrega influencia. Nota 5 = precisa de entrega rápida/urgente.',
+    sensDescEstoque:'Quanto a disponibilidade em estoque importa. Nota 5 = não aceita esperar reposição.',
+    sensDescMarca:'Quanto a marca/reputação pesa. Nota 5 = só compra marcas conhecidas.',
+    sensDescPosvenda:'Quanto o suporte pós-venda importa. Nota 5 = precisa de garantia e assistência forte.',
+    sensDescCustom:'Quanto a personalização do produto importa. Nota 5 = quer produto sob medida.',
+    sensDescCredito:'Quanto condições de pagamento/crédito pesam. Nota 5 = precisa de prazo longo para pagar.',
+    sensHowTo:'Você pode ajustar manualmente ou clicar em "Analisar com IA" para a IA preencher automaticamente com base nas avaliações do Google e dados públicos.',
+    prodExplainTitle:'O que são Produtos Relevantes?',
+    prodExplain:'São os produtos ou categorias que esta empresa vende, compra ou trabalha. Use para saber quais dos seus produtos oferecer na abordagem comercial.',
+    prodHowTo:'Adicione tags manualmente ou use a Análise por IA para identificar automaticamente. Exemplos: "Painel LED", "Fita LED", "Luminária Comercial".',
+    prodEmpty:'Nenhum produto cadastrado ainda. Adicione manualmente abaixo ou use a IA para identificar automaticamente.',
     // Status
     statusNew:'Novo', statusContacted:'Contatado', statusNegotiating:'Em Negociação',
     statusClosed:'Fechado', changeStatus:'Alterar Status',
@@ -264,6 +279,21 @@ const TX = {
     analyzeAI:'Analyze with AI', analyzingAI:'Analyzing...', aiAnalyzed:'AI Analyzed',
     aiConfidence:'Confidence', aiReasoning:'Reasoning', aiSources:'Sources',
     notAnalyzed:'Not analyzed yet', reanalyze:'Re-analyze',
+    sensExplainTitle:'What are Sensitivities?',
+    sensExplain:'Sensitivities indicate how much each factor influences this company\'s purchasing decision. Scale from 1 (low importance) to 5 (very high importance). Use them to customize your sales approach.',
+    sensDescPreco:'How much price affects the buying decision. Score 5 = only buys the cheapest.',
+    sensDescQualidade:'How much product quality matters. Score 5 = demands the best, even at higher cost.',
+    sensDescEntrega:'How much delivery time matters. Score 5 = needs fast/urgent delivery.',
+    sensDescEstoque:'How much stock availability matters. Score 5 = won\'t wait for restocking.',
+    sensDescMarca:'How much brand/reputation matters. Score 5 = only buys known brands.',
+    sensDescPosvenda:'How much after-sales support matters. Score 5 = needs strong warranty and assistance.',
+    sensDescCustom:'How much product customization matters. Score 5 = wants custom-made products.',
+    sensDescCredito:'How much payment terms/credit matter. Score 5 = needs long payment terms.',
+    sensHowTo:'You can adjust manually or click "Analyze with AI" to auto-fill based on Google reviews and public data.',
+    prodExplainTitle:'What are Relevant Products?',
+    prodExplain:'These are products or categories this company sells, buys, or works with. Use them to know which of your products to offer in your sales approach.',
+    prodHowTo:'Add tags manually or use AI Analysis to identify them automatically. Examples: "LED Panel", "LED Strip", "Commercial Luminaire".',
+    prodEmpty:'No products registered yet. Add manually below or use AI to identify them automatically.',
     // Status
     statusNew:'New', statusContacted:'Contacted', statusNegotiating:'Negotiating',
     statusClosed:'Closed', changeStatus:'Change Status',
@@ -287,7 +317,7 @@ const TX = {
 const REGIOES = ["São Paulo - Centro","São Paulo - Zona Norte","São Paulo - Zona Sul","São Paulo - Zona Leste","São Paulo - Zona Oeste","Guarulhos","Osasco","Santo André","São Bernardo do Campo","Campinas","Sorocaba","Ribeirão Preto","Santos","Barueri","Suzano"];
 const UFS = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
 const TIPOS = [{v:"fabricante",l:"Fabricante",en:"Manufacturer",i:"🏭"},{v:"importador",l:"Importador",en:"Importer",i:"🚢"},{v:"revendedor",l:"Revendedor",en:"Reseller",i:"🏪"},{v:"lojista",l:"Lojista",en:"Retailer",i:"🏬"},{v:"ecommerce",l:"E-commerce",en:"E-commerce",i:"🛒"},{v:"construtora",l:"Construtora",en:"Construction Co.",i:"🏗️"},{v:"arquiteto",l:"Escritório Arquitetura",en:"Architecture Firm",i:"📐"},{v:"instalador",l:"Instalador/Técnico",en:"Installer/Technician",i:"⚡"},{v:"atacadista",l:"Atacadista/Distribuidor",en:"Wholesaler/Distributor",i:"📦"},{v:"prestador",l:"Prestador de Serviço",en:"Service Provider",i:"🔧"}];
-const SENS = [{k:"preco",l:"Preço",en:"Price",i:"💰",c:"#ef4444"},{k:"qualidade",l:"Qualidade",en:"Quality",i:"⭐",c:"#f59e0b"},{k:"entrega",l:"Prazo Entrega",en:"Delivery Time",i:"🚚",c:"#3b82f6"},{k:"estoque",l:"Estoque",en:"Stock",i:"📦",c:"#8b5cf6"},{k:"marca",l:"Marca",en:"Brand",i:"🏷️",c:"#ec4899"},{k:"posvenda",l:"Pós-Venda",en:"After-Sales",i:"🛡️",c:"#10b981"},{k:"custom",l:"Personalização",en:"Customization",i:"🎨",c:"#f97316"},{k:"credito",l:"Crédito",en:"Credit",i:"💳",c:"#6366f1"}];
+const SENS = [{k:"preco",l:"Preço",en:"Price",i:"💰",c:"#ef4444",dk:"sensDescPreco"},{k:"qualidade",l:"Qualidade",en:"Quality",i:"⭐",c:"#f59e0b",dk:"sensDescQualidade"},{k:"entrega",l:"Prazo Entrega",en:"Delivery Time",i:"🚚",c:"#3b82f6",dk:"sensDescEntrega"},{k:"estoque",l:"Estoque",en:"Stock",i:"📦",c:"#8b5cf6",dk:"sensDescEstoque"},{k:"marca",l:"Marca",en:"Brand",i:"🏷️",c:"#ec4899",dk:"sensDescMarca"},{k:"posvenda",l:"Pós-Venda",en:"After-Sales",i:"🛡️",c:"#10b981",dk:"sensDescPosvenda"},{k:"custom",l:"Personalização",en:"Customization",i:"🎨",c:"#f97316",dk:"sensDescCustom"},{k:"credito",l:"Crédito",en:"Credit",i:"💳",c:"#6366f1",dk:"sensDescCredito"}];
 const PIPELINE = [{k:"prospeccao",l:"Prospecção",en:"Prospecting",c:"#94a3b8"},{k:"contato",l:"Contato Inicial",en:"Initial Contact",c:"#60a5fa"},{k:"apresentacao",l:"Apresentação",en:"Presentation",c:"#a78bfa"},{k:"proposta",l:"Proposta",en:"Proposal",c:"#fbbf24"},{k:"negociacao",l:"Negociação",en:"Negotiation",c:"#f97316"},{k:"fechado",l:"Fechado ✓",en:"Closed ✓",c:"#22c55e"},{k:"perdido",l:"Perdido ✗",en:"Lost ✗",c:"#ef4444"}];
 const STATUS = [{k:"novo",l:"Novo",en:"New",c:"#94a3b8",i:"🆕"},{k:"contatado",l:"Contatado",en:"Contacted",c:"#60a5fa",i:"📞"},{k:"negociacao",l:"Em Negociação",en:"Negotiating",c:"#f59e0b",i:"🤝"},{k:"fechado",l:"Fechado",en:"Closed",c:"#22c55e",i:"✅"}];
 const PIPELINE_TO_STATUS = {prospeccao:"novo",contato:"contatado",apresentacao:"contatado",proposta:"negociacao",negociacao:"negociacao",fechado:"fechado",perdido:"novo"};
@@ -1658,38 +1688,54 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
 
         {/* Sensitivities Tab */}
         {tab==="sens"&&<div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <h3 style={{fontSize:fs(15),fontWeight:600,color:"var(--text-1)",margin:0}}>{tx.sensitivities}</h3>
               {mc.sensAI?.analyzed&&<span style={{padding:"2px 8px",borderRadius:10,background:"#dbeafe",color:"#1d4ed8",fontSize:fs(10),fontWeight:700}}>🤖 {tx.aiAnalyzed}</span>}
             </div>
             {canEdit&&<button onClick={runAI} disabled={aiLoading} style={{padding:"6px 14px",borderRadius:8,background:aiLoading?"var(--text-4)":"linear-gradient(135deg,#4f46e5,#7c3aed)",color:"white",border:"none",fontSize:fs(12),fontWeight:600,cursor:aiLoading?"wait":"pointer"}}>{aiLoading?tx.analyzingAI:mc.sensAI?.analyzed?tx.reanalyze:tx.analyzeAI} 🤖</button>}
           </div>
+          {/* Explicação do que são Sensibilidades */}
+          <div style={{padding:12,background:"var(--accent-bg)",borderRadius:8,marginBottom:14,border:"1px solid rgba(79,70,229,0.15)"}}>
+            <div style={{fontSize:fs(12),fontWeight:600,color:"#4f46e5",marginBottom:4}}>ℹ️ {tx.sensExplainTitle}</div>
+            <div style={{fontSize:fs(11),color:"var(--text-2)",lineHeight:1.5}}>{tx.sensExplain}</div>
+            <div style={{fontSize:fs(10),color:"var(--text-3)",marginTop:6,fontStyle:"italic"}}>💡 {tx.sensHowTo}</div>
+          </div>
           {aiErr&&<div style={{padding:10,background:"var(--danger-bg)",borderRadius:8,marginBottom:10,fontSize:fs(12),color:"#dc2626"}}>{aiErr}</div>}
-          {mc.sensAI?.analyzed&&mc.sensAI.confidence>0&&<div style={{padding:8,background:"var(--accent-bg)",borderRadius:8,marginBottom:12,fontSize:fs(11),color:"#4f46e5"}}>
-            {tx.aiConfidence}: {Math.round(mc.sensAI.confidence*100)}% • {tx.aiSources}: {mc.sensAI.sources?.join(", ")||"—"}
+          {mc.sensAI?.analyzed&&mc.sensAI.confidence>0&&<div style={{padding:8,background:"#dcfce7",borderRadius:8,marginBottom:12,fontSize:fs(11),color:"#16a34a"}}>
+            ✅ {tx.aiConfidence}: {Math.round(mc.sensAI.confidence*100)}% • {tx.aiSources}: {mc.sensAI.sources?.join(", ")||"—"}
           </div>}
-          {SENS.map(s=><div key={s.k} style={{marginBottom:8}}>
+          {SENS.map(s=><div key={s.k} style={{marginBottom:12,padding:8,background:"var(--card-bg)",borderRadius:8,border:"1px solid var(--border)"}}>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <span style={{fontSize:fs(13),width:18,textAlign:"center"}}>{s.i}</span>
-              <span style={{fontSize:fs(11),width:90,color:"var(--text-2)"}}>{tl(s,lang)}</span>
+              <span style={{fontSize:fs(15),width:22,textAlign:"center"}}>{s.i}</span>
+              <span style={{fontSize:fs(12),fontWeight:600,color:"var(--text-1)",minWidth:100}}>{tl(s,lang)}</span>
               <div style={{flex:1,height:8,background:"var(--bar-bg)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${(mc.sens[s.k]||3)*20}%`,height:"100%",background:s.c,borderRadius:4,transition:"width 0.3s"}}/></div>
-              <span style={{fontSize:fs(12),fontWeight:700,width:18,textAlign:"right",color:s.c}}>{mc.sens[s.k]||3}</span>
+              <span style={{fontSize:fs(13),fontWeight:700,width:22,textAlign:"right",color:s.c}}>{mc.sens[s.k]||3}/5</span>
               {canEdit&&<input type="range" min="1" max="5" value={mc.sens[s.k]||3} onChange={e=>updateCl({sens:{...mc.sens,[s.k]:parseInt(e.target.value)}})} style={{width:60}}/>}
             </div>
-            {mc.sensAI?.reasoning?.[s.k]&&<div style={{marginLeft:28,fontSize:fs(10),color:"var(--text-3)",fontStyle:"italic",marginTop:2}}>💡 {mc.sensAI.reasoning[s.k]}</div>}
+            <div style={{marginLeft:28,fontSize:fs(10),color:"var(--text-3)",marginTop:3}}>{tx[s.dk]||""}</div>
+            {mc.sensAI?.reasoning?.[s.k]&&<div style={{marginLeft:28,fontSize:fs(10),color:"#4f46e5",fontStyle:"italic",marginTop:2,background:"var(--accent-bg)",padding:"3px 8px",borderRadius:4}}>🤖 {mc.sensAI.reasoning[s.k]}</div>}
           </div>)}
         </div>}
 
         {/* Products Tab */}
         {tab==="products"&&<div>
-          <h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:12,color:"var(--text-1)"}}>{tx.relevantProducts}</h3>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-            {(mc.produtosRelevantes||[]).map((p,i)=><span key={i} style={{padding:"4px 12px",borderRadius:20,background:"#dbeafe",color:"#1d4ed8",fontSize:fs(12),fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
-              {p}
-              {canEdit&&<span onClick={()=>updateCl({produtosRelevantes:mc.produtosRelevantes.filter((_,j)=>j!==i)})} style={{cursor:"pointer",fontWeight:700,fontSize:fs(14)}}>×</span>}
+          <h3 style={{fontSize:fs(15),fontWeight:600,marginBottom:8,color:"var(--text-1)"}}>{tx.relevantProducts}</h3>
+          {/* Explicação do que são Produtos */}
+          <div style={{padding:12,background:"var(--accent-bg)",borderRadius:8,marginBottom:14,border:"1px solid rgba(79,70,229,0.15)"}}>
+            <div style={{fontSize:fs(12),fontWeight:600,color:"#4f46e5",marginBottom:4}}>ℹ️ {tx.prodExplainTitle}</div>
+            <div style={{fontSize:fs(11),color:"var(--text-2)",lineHeight:1.5}}>{tx.prodExplain}</div>
+            <div style={{fontSize:fs(10),color:"var(--text-3)",marginTop:6,fontStyle:"italic"}}>💡 {tx.prodHowTo}</div>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+            {(mc.produtosRelevantes||[]).map((p,i)=><span key={i} style={{padding:"6px 14px",borderRadius:20,background:"#dbeafe",color:"#1d4ed8",fontSize:fs(12),fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+              🏷️ {p}
+              {canEdit&&<span onClick={()=>updateCl({produtosRelevantes:mc.produtosRelevantes.filter((_,j)=>j!==i)})} style={{cursor:"pointer",fontWeight:700,fontSize:fs(14),color:"#ef4444"}}>×</span>}
             </span>)}
-            {(!mc.produtosRelevantes||mc.produtosRelevantes.length===0)&&<span style={{fontSize:fs(12),color:"var(--text-4)"}}>—</span>}
+            {(!mc.produtosRelevantes||mc.produtosRelevantes.length===0)&&<div style={{padding:16,textAlign:"center",width:"100%",background:"var(--card-bg)",borderRadius:8,border:"1px dashed var(--border)"}}>
+              <div style={{fontSize:fs(24),marginBottom:6}}>📦</div>
+              <div style={{fontSize:fs(12),color:"var(--text-3)"}}>{tx.prodEmpty}</div>
+            </div>}
           </div>
           {canEdit&&<div style={{display:"flex",gap:8}}>
             <input value={newProd} onChange={e=>setNewProd(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newProd.trim()){updateCl({produtosRelevantes:[...(mc.produtosRelevantes||[]),newProd.trim()]});setNewProd("");}}} placeholder={tx.addProduct} style={{...S.input,flex:1}}/>
