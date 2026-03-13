@@ -1643,15 +1643,23 @@ function Dashboard({cls,proj,tx,lang}) {
   // Export PDF
   const exportPDF = () => {
     const d = new Date().toLocaleDateString(pt?'pt-BR':'en-US');
+    const brandData = LS.get("branding",{});
+    const logoSrc = brandData.logo || LOGO;
+    const systemName = brandData.systemName || "ProspectaHub";
     const sensLabels = {preco:pt?"Preço":"Price",qualidade:pt?"Qualidade":"Quality",entrega:pt?"Entrega":"Delivery",estoque:pt?"Estoque":"Stock",marca:pt?"Marca":"Brand",posvenda:pt?"Pós-Venda":"After-Sales",custom:pt?"Personalização":"Custom",credito:pt?"Crédito":"Credit"};
     let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${proj.nome} - ${pt?"Relatório de Clientes":"Client Report"}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box}
       body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937;padding:20px}
-      .cover{text-align:center;page-break-after:always;padding-top:180px}
+      .cover{text-align:center;page-break-after:always;padding-top:120px}
       .cover h1{font-size:32px;color:#4f46e5;margin-bottom:8px}
       .cover h2{font-size:18px;color:#6b7280;font-weight:400}
       .cover .date{margin-top:40px;color:#9ca3af;font-size:13px}
+      .cover .logo{margin-bottom:30px}
+      .cover .logo img{height:70px;max-width:300px;object-fit:contain}
+      .page-header{display:flex;justify-content:space-between;align-items:center;padding:4px 0 8px;margin-bottom:12px;border-bottom:2px solid #4f46e5}
+      .page-header img{height:28px;max-width:140px;object-fit:contain}
+      .page-header span{font-size:9px;color:#9ca3af}
       .company{page-break-inside:avoid;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:16px;background:#fafafa}
       .company-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:2px solid #4f46e5;padding-bottom:8px}
       .company-header h3{font-size:16px;color:#1e3a5f;margin:0}
@@ -1672,14 +1680,16 @@ function Dashboard({cls,proj,tx,lang}) {
     </style></head><body>`;
 
     // Cover page
-    html += `<div class="cover"><h1>${proj.nome}</h1><h2>${pt?"Relatório Completo de Clientes":"Complete Client Report"}</h2>
-    <p style="margin-top:12px;color:#6b7280">${mc.length} ${pt?"empresas":"companies"} | ProspectaHub v2.0</p>
+    html += `<div class="cover"><div class="logo"><img src="${logoSrc}" alt="${systemName}"/></div>
+    <h1>${proj.nome}</h1><h2>${pt?"Relatório Completo de Clientes":"Complete Client Report"}</h2>
+    <p style="margin-top:12px;color:#6b7280">${mc.length} ${pt?"empresas":"companies"} | ${systemName} v2.0</p>
     <p class="date">${pt?"Gerado em":"Generated on"} ${d}</p></div>`;
 
     // Each company
     mc.forEach((c,i) => {
       const m = migrateClient(c);
       const statusClass = "status-"+(m.status||"novo");
+      html += `<div class="page-header"><img src="${logoSrc}" alt="${systemName}"/><span>${proj.nome} | ${d}</span></div>`;
       html += `<div class="company">`;
       html += `<div class="company-header"><h3>${i+1}. ${m.nome}</h3><div class="badges">`;
       html += `<span class="${statusClass}">${(m.status||"novo").toUpperCase()}</span>`;
@@ -1761,7 +1771,7 @@ function Dashboard({cls,proj,tx,lang}) {
       html += `</div>`; // end company
     });
 
-    html += `<div class="footer">ProspectaHub v2.0 | ${pt?"Gerado em":"Generated on"} ${d} | ${mc.length} ${pt?"empresas":"companies"}</div>`;
+    html += `<div class="footer"><img src="${logoSrc}" alt="${systemName}" style="height:20px;max-width:100px;object-fit:contain;vertical-align:middle;margin-right:8px;opacity:0.5"/>${systemName} v2.0 | ${pt?"Gerado em":"Generated on"} ${d} | ${mc.length} ${pt?"empresas":"companies"}</div>`;
     html += `</body></html>`;
 
     const w = window.open('','_blank');
@@ -1773,15 +1783,23 @@ function Dashboard({cls,proj,tx,lang}) {
   // Export XLSX (via HTML table → Excel format)
   const exportXLSX = () => {
     const d = new Date().toISOString().split("T")[0];
+    const brandData = LS.get("branding",{});
+    const systemName = brandData.systemName || "ProspectaHub";
     const sensLabels = ["Preço","Qualidade","Entrega","Estoque","Marca","Pós-Venda","Personalização","Crédito"];
     const sensKeys = ["preco","qualidade","entrega","estoque","marca","posvenda","custom","credito"];
     let xml = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
     xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
     xml += '<Styles><Style ss:ID="header"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="10"/><Interior ss:Color="#4F46E5" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center"/></Style>';
-    xml += '<Style ss:ID="wrap"><Alignment ss:WrapText="1" ss:Vertical="Top"/></Style></Styles>';
+    xml += '<Style ss:ID="wrap"><Alignment ss:WrapText="1" ss:Vertical="Top"/></Style>';
+    xml += '<Style ss:ID="title"><Font ss:Bold="1" ss:Color="#4F46E5" ss:Size="14"/></Style>';
+    xml += '<Style ss:ID="subtitle"><Font ss:Color="#6B7280" ss:Size="10" ss:Italic="1"/></Style></Styles>';
+
+    const sheetTitle = (name) => `<Row><Cell ss:StyleID="title" ss:MergeAcross="5"><Data ss:Type="String">${systemName} | ${proj.nome}</Data></Cell></Row>`
+      + `<Row><Cell ss:StyleID="subtitle" ss:MergeAcross="5"><Data ss:Type="String">${name} | ${pt?"Gerado em":"Generated on"} ${d} | ${mc.length} ${pt?"empresas":"companies"}</Data></Cell></Row><Row></Row>`;
 
     // Sheet 1: Dados Principais
     xml += `<Worksheet ss:Name="${pt?"Dados Principais":"Main Data"}"><Table>`;
+    xml += sheetTitle(pt?"Dados Principais":"Main Data");
     const h1 = ["Nome","Tipo","Status","Pipeline","Telefone","Email","Endereço","Região","CNPJ","Avaliação Google","Qtd Avaliações","Canal Preferido","Website","LinkedIn","Instagram","Facebook","Score","Fonte","Criado Em","Notas"];
     xml += '<Row>' + h1.map(h=>`<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('') + '</Row>';
     mc.forEach(c => {
@@ -1797,6 +1815,7 @@ function Dashboard({cls,proj,tx,lang}) {
 
     // Sheet 2: Dept de Compras
     xml += `<Worksheet ss:Name="${pt?"Dept. Compras":"Purchasing Dept"}"><Table>`;
+    xml += sheetTitle(pt?"Departamento de Compras":"Purchasing Department");
     const h2 = ["Empresa","Contato Nome","Cargo","Email","Telefone","WhatsApp"];
     xml += '<Row>' + h2.map(h=>`<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('') + '</Row>';
     mc.forEach(c => {
@@ -1810,6 +1829,7 @@ function Dashboard({cls,proj,tx,lang}) {
 
     // Sheet 3: Sensibilidades
     xml += `<Worksheet ss:Name="${pt?"Sensibilidades":"Sensitivities"}"><Table>`;
+    xml += sheetTitle(pt?"Sensibilidades de Compra":"Purchase Sensitivities");
     const h3 = ["Empresa",...sensLabels,"Fonte"];
     xml += '<Row>' + h3.map(h=>`<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('') + '</Row>';
     mc.forEach(c => {
@@ -1822,6 +1842,7 @@ function Dashboard({cls,proj,tx,lang}) {
 
     // Sheet 4: Análise Social
     xml += `<Worksheet ss:Name="${pt?"Análise Social":"Social Analysis"}"><Table>`;
+    xml += sheetTitle(pt?"Análise de Perfil Social (IA)":"Social Profile Analysis (AI)");
     const h4 = ["Empresa","Resumo","Posicionamento","Temas","Tom","Público-Alvo","Pontos Fortes","Oportunidades","Estratégia"];
     xml += '<Row>' + h4.map(h=>`<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('') + '</Row>';
     mc.forEach(c => {
