@@ -2687,7 +2687,7 @@ function App() {
   const [user,setUser] = useState(LS.get("user",null));
   const [users,setUsers] = useState(LS.get("users",DEFAULT_USERS));
   const [logs,setLogs] = useState(LS.get("logs",[]));
-  const [perms,setPerms] = useState(LS.get("perms",DEFAULT_PERMS));
+  const [perms,setPerms] = useState(()=>{const saved=LS.get("perms",DEFAULT_PERMS);const allKeys=MODULES.map(m=>m.k);Object.keys(saved).forEach(role=>{allKeys.forEach(k=>{if(!saved[role].includes(k)&&DEFAULT_PERMS[role]?.includes(k))saved[role].push(k);});});if(!saved.admin)saved.admin=allKeys;else allKeys.forEach(k=>{if(!saved.admin.includes(k))saved.admin.push(k);});return saved;});
   const [sec,setSec]=useState("projetos");
   const [projs,setProjs]=useState(()=>{const s=LS.get("projs",null);const raw=s?s:PROJECTS0;return raw.map(p=>({...p,members:p.members||[],clients:migrateAllClients(p.clients||[])}));});
   const [ap,setAp]=useState(null);
