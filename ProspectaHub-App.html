@@ -107,7 +107,7 @@ const TX = {
     resetPasswordFor:'Redefinir Senha', newPasswordOptional:'Nova Senha (deixe vazio para manter)',
     edit:'Editar',
     projectMembers:'Membros do Projeto', projectMgmt:'Projetos', projectMembersTitle:'Gerenciar Membros dos Projetos',
-    membersAssigned:'membro(s)', noProjectAccess:'Você não tem acesso a nenhum projeto. Solicite ao administrador.',
+    membersAssigned:'membro(s)', noProjectAccess:'Você não tem acesso a nenhum projeto. Solicite ao administrador.', editMembers:'Editar Membros', membersSaved:'Membros atualizados!', deleteProject:'Excluir Projeto', confirmDeleteProject:'Tem certeza que deseja excluir este projeto? Os clientes serão perdidos.',
     customization:'Personalização', customizationTitle:'Personalização da Marca',
     systemNameLabel:'Nome do Sistema', systemNameHint:'Deixe vazio para usar o nome padrão',
     companyLogo:'Logo da Empresa', noLogo:'Sem logo', uploadLogo:'Enviar Logo', removeLogo:'Remover Logo',
@@ -242,7 +242,7 @@ const TX = {
     resetPasswordFor:'Reset Password', newPasswordOptional:'New Password (leave empty to keep)',
     edit:'Edit',
     projectMembers:'Project Members', projectMgmt:'Projects', projectMembersTitle:'Manage Project Members',
-    membersAssigned:'member(s)', noProjectAccess:'You have no access to any project. Contact your administrator.',
+    membersAssigned:'member(s)', noProjectAccess:'You have no access to any project. Contact your administrator.', editMembers:'Edit Members', membersSaved:'Members updated!', deleteProject:'Delete Project', confirmDeleteProject:'Are you sure you want to delete this project? Clients will be lost.',
     customization:'Customization', customizationTitle:'Brand Customization',
     systemNameLabel:'System Name', systemNameHint:'Leave empty to use default name',
     companyLogo:'Company Logo', noLogo:'No logo', uploadLogo:'Upload Logo', removeLogo:'Remove Logo',
@@ -1126,7 +1126,7 @@ function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,projs,setProjs,p
   const removeEditAvatar = () => { setEditAvatar(null); setEditAvatarChanged(true); };
   const saveEdit = () => {
     if(!editData.nome||!editData.email) return;
-    const upd = {nome:editData.nome,email:editData.email,tel:editData.tel,role:editData.role,testLimit:parseInt(editData.testLimit)||0};
+    const upd = {nome:editData.nome,email:editData.email,tel:editData.tel,role:editData.role,testLimit:parseInt(editData.testLimit)||0,maxProjects:parseInt(editData.maxProjects)||0};
     if(editData.novaSenha) upd.senha = hashPw(editData.novaSenha);
     setUsers(users.map(u=>u.id===editId?{...u,...upd}:u));
     if(editAvatarChanged) LS.set("avatar_"+editId, editAvatar);
@@ -1136,14 +1136,20 @@ function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,projs,setProjs,p
   const updateUser = (id,data) => setUsers(users.map(u=>u.id===id?{...u,...data}:u));
   const deleteUser = id => { if(id!=="u1") setUsers(users.filter(u=>u.id!==id)); };
   const onNewUserAvatar = (e) => { const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=(ev)=>setNewUserAvatar(ev.target.result); r.readAsDataURL(f); };
+  const [newUserProjects,setNewUserProjects]=useState([]);
   const createUser = () => {
     if(!newUser.nome||!newUser.email||!newUser.senha) return;
     if(users.filter(u=>u.ativo).length>=plan.maxUsers){if(confirm(tx.userLimitReached.replace("{n}",plan.maxUsers)+"\n\n"+(lang==="en"?"View plans?":"Ver planos?")))setSec("planos");return;}
     const uid = "u"+Date.now();
-    setUsers([...users,{id:uid,nome:newUser.nome,email:newUser.email,senha:hashPw(newUser.senha),role:newUser.role,tel:newUser.tel,testLimit:parseInt(newUser.testLimit)||0,testCount:0,ativo:true,criadoEm:new Date().toISOString().split("T")[0]}]);
+    setUsers([...users,{id:uid,nome:newUser.nome,email:newUser.email,senha:hashPw(newUser.senha),role:newUser.role,tel:newUser.tel,testLimit:parseInt(newUser.testLimit)||0,maxProjects:parseInt(newUser.maxProjects)||0,testCount:0,ativo:true,criadoEm:new Date().toISOString().split("T")[0]}]);
     if(newUserAvatar) LS.set("avatar_"+uid, newUserAvatar);
-    setNewUser({nome:"",email:"",senha:"",role:"vendedor",tel:"",testLimit:0});
+    // Add user to selected projects
+    if(newUserProjects.length>0) {
+      setProjs(projs.map(p=>newUserProjects.includes(p.id)?{...p,members:[...(p.members||[]),uid]}:p));
+    }
+    setNewUser({nome:"",email:"",senha:"",role:"vendedor",tel:"",testLimit:0,maxProjects:0});
     setNewUserAvatar(null);
+    setNewUserProjects([]);
   };
   const filteredLogs = filterUser?logs.filter(l=>l.usuario===filterUser):logs;
   return (
@@ -1181,8 +1187,21 @@ function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,projs,setProjs,p
                 <div><label style={S.label}>{tx.role}</label><select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} style={S.input}>{ROLES.map(r=><option key={r.v} value={r.v}>{tl(r,lang)}</option>)}</select></div>
                 <div><label style={S.label}>{tx.phone}</label><input value={newUser.tel} onChange={e=>setNewUser({...newUser,tel:e.target.value})} placeholder="(11) 99999-9999" style={S.input}/></div>
                 <div><label style={S.label}>🔍 {tx.testLimit}</label><input type="number" min="0" value={newUser.testLimit} onChange={e=>setNewUser({...newUser,testLimit:e.target.value})} placeholder="0" style={S.input} title={tx.testLimitHint}/></div>
+                <div><label style={S.label}>📂 {lang==='en'?"Max Projects":"Máx. Projetos"}</label><input type="number" min="0" value={newUser.maxProjects||0} onChange={e=>setNewUser({...newUser,maxProjects:e.target.value})} placeholder="0" style={S.input}/><div style={{fontSize:fs(9),color:"var(--text-3)",marginTop:2}}>{lang==='en'?"0 = unlimited":"0 = ilimitado"}</div></div>
               </div>
             </div>
+            {/* Assign to projects */}
+            {projs.length>0&&<div style={{marginBottom:14}}>
+              <label style={S.label}>📂 {lang==='en'?"Add to Projects":"Adicionar a Projetos"}</label>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:10,border:"1px solid var(--input-border)",borderRadius:6,background:"var(--input-bg)"}}>
+                {projs.map(p=>(
+                  <label key={p.id} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",fontSize:fs(12),color:"var(--text-1)",padding:"4px 8px",borderRadius:6,background:newUserProjects.includes(p.id)?"#e0e7ff":"transparent"}}>
+                    <input type="checkbox" checked={newUserProjects.includes(p.id)} onChange={e=>setNewUserProjects(e.target.checked?[...newUserProjects,p.id]:newUserProjects.filter(x=>x!==p.id))}/>
+                    <span>{p.icon} {p.nome}</span>
+                  </label>
+                ))}
+              </div>
+            </div>}
             <button onClick={createUser} style={{padding:"8px 16px",borderRadius:8,background:"#22c55e",color:"white",border:"none",fontSize:fs(13),fontWeight:600,cursor:"pointer"}}>{tx.createUser}</button>
           </div>
           <div>
@@ -1238,6 +1257,8 @@ function AdminPanel({users,setUsers,logs,setLogs,perms,setPerms,projs,setProjs,p
                   <div><label style={S.label}>{tx.role}</label><select value={editData.role} onChange={e=>setEditData({...editData,role:e.target.value})} style={S.input}>{ROLES.map(r=><option key={r.v} value={r.v}>{tl(r,lang)}</option>)}</select></div>
                   <div><label style={S.label}>🔍 {tx.testLimit}</label><input type="number" min="0" value={editData.testLimit} onChange={e=>setEditData({...editData,testLimit:e.target.value})} placeholder="0" style={S.input} title={tx.testLimitHint}/><div style={{fontSize:fs(10),color:"var(--text-3)",marginTop:2}}>{tx.testLimitHint}</div></div>
                   <div style={{display:"flex",alignItems:"center",gap:8}}><label style={S.label}>🔍 {tx.testsUsed}</label><span style={{fontSize:fs(14),fontWeight:700,color:"#4f46e5"}}>{users.find(u=>u.id===editId)?.testCount||0}</span><button onClick={()=>{setUsers(users.map(u=>u.id===editId?{...u,testCount:0}:u));setEditMsg({type:"ok",text:"Contador resetado!"});setTimeout(()=>setEditMsg(null),1500);}} style={{padding:"3px 10px",borderRadius:4,border:"1px solid var(--input-border)",background:"var(--hover-bg)",fontSize:fs(10),cursor:"pointer",color:"var(--text-2)"}}>↺ Reset</button></div>
+                  <div><label style={S.label}>📂 {lang==='en'?"Max Projects":"Máx. Projetos"}</label><input type="number" min="0" value={editData.maxProjects||0} onChange={e=>setEditData({...editData,maxProjects:e.target.value})} placeholder="0" style={S.input}/><div style={{fontSize:fs(10),color:"var(--text-3)",marginTop:2}}>{lang==='en'?"0 = unlimited":"0 = ilimitado"}</div></div>
+                  <div><label style={S.label}>📂 {lang==='en'?"Projects Created":"Projetos Criados"}</label><span style={{fontSize:fs(14),fontWeight:700,color:"#4f46e5"}}>{projs.filter(p=>(p.members||[]).includes(editId)).length}</span></div>
                 </div>
                 {/* Password reset */}
                 <div style={{padding:"14px 0",borderTop:"1px solid var(--card-border)",marginBottom:14}}>
@@ -1550,12 +1571,19 @@ function Perfil({user,users,setUsers,setUser,avatar,onAvatarChange,onAvatarRemov
 function Projetos({projs,setProjs,setAp,setSec,canEdit,user,users,plan,tx,lang}) {
   const [show,setShow]=useState(false);
   const [np,setNp]=useState({nome:"",desc:"",ramo:"",cor:"#4f46e5",icon:"📁",members:[]});
+  const [editProjId,setEditProjId]=useState(null);
+  const [editMembers,setEditMembers]=useState([]);
+  const [editMsg,setEditMsg]=useState(null);
   const visibleProjs = user.role==="admin" ? projs : projs.filter(p=>(p.members||[]).includes(user.id));
+  const openEditMembers = (p,e) => { e.stopPropagation(); setEditProjId(p.id); setEditMembers([...(p.members||[])]); setEditMsg(null); };
+  const saveMembers = () => { setProjs(projs.map(p=>p.id===editProjId?{...p,members:editMembers}:p)); setEditMsg(tx.membersSaved); setTimeout(()=>{setEditProjId(null);setEditMsg(null);},1200); };
+  const deleteProject = (pid,e) => { e.stopPropagation(); if(!confirm(tx.confirmDeleteProject)) return; setProjs(projs.filter(p=>p.id!==pid)); };
+  const editProj = editProjId ? projs.find(p=>p.id===editProjId) : null;
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div><h2 style={{fontSize:fs(22),fontWeight:700,color:"var(--text-1)",marginBottom:4}}>{tx.projects}</h2><p style={{color:"var(--text-2)",fontSize:fs(14)}}>{tx.organizeByBranch}</p></div>
-        {canEdit&&<button onClick={()=>{if(user.role!=="admin"&&projs.length>=plan.maxProjects){if(confirm(tx.projectLimitReached.replace("{n}",plan.maxProjects)+"\n\n"+(lang==="en"?"View plans?":"Ver planos?")))setSec("planos");return;}setShow(!show);}} style={{background:"var(--accent-grad)",color:"white",border:"none",padding:"10px 20px",borderRadius:8,fontSize:fs(14),fontWeight:600,cursor:"pointer"}}>{tx.newProject}</button>}
+        {canEdit&&<button onClick={()=>{if(user.role!=="admin"){if(projs.length>=plan.maxProjects){if(confirm(tx.projectLimitReached.replace("{n}",plan.maxProjects)+"\n\n"+(lang==="en"?"View plans?":"Ver planos?")))setSec("planos");return;}if(user.maxProjects&&user.maxProjects>0){const userProjCount=projs.filter(p=>(p.members||[]).includes(user.id)).length;if(userProjCount>=user.maxProjects){alert(lang==="en"?`You reached your personal project limit (${user.maxProjects}). Contact admin.`:`Você atingiu seu limite pessoal de projetos (${user.maxProjects}). Contate o admin.`);return;}}}setShow(!show);}} style={{background:"var(--accent-grad)",color:"white",border:"none",padding:"10px 20px",borderRadius:8,fontSize:fs(14),fontWeight:600,cursor:"pointer"}}>{tx.newProject}</button>}
       </div>
       {show&&canEdit&&(
         <div style={{...S.card,padding:24,marginBottom:20,boxShadow:"0 4px 20px rgba(0,0,0,0.1)"}}>
@@ -1589,20 +1617,61 @@ function Projetos({projs,setProjs,setAp,setSec,canEdit,user,users,plan,tx,lang})
       )}
       {visibleProjs.length===0&&<div style={{...S.card,padding:40,textAlign:"center"}}><p style={{fontSize:fs(14),color:"var(--text-3)"}}>{tx.noProjectAccess}</p></div>}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        {visibleProjs.map(p=>(
-          <div key={p.id} onClick={()=>{setAp(p.id);setSec("dashboard");}} style={{...S.card,cursor:"pointer",borderTop:`4px solid ${p.cor}`,padding:24}}>
+        {visibleProjs.map(p=>{
+          const memberNames = (p.members||[]).map(mid=>{const u=users.find(x=>x.id===mid);return u?u.nome:null;}).filter(Boolean);
+          return (
+          <div key={p.id} onClick={()=>{setAp(p.id);setSec("dashboard");}} style={{...S.card,cursor:"pointer",borderTop:`4px solid ${p.cor}`,padding:24,position:"relative"}}>
+            {user.role==="admin"&&<div style={{position:"absolute",top:12,right:12,display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
+              <button onClick={e=>openEditMembers(p,e)} title={tx.editMembers} style={{width:30,height:30,borderRadius:8,border:"1px solid var(--input-border)",background:"var(--card-bg)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:fs(14),color:"var(--text-2)"}}>👥</button>
+              <button onClick={e=>deleteProject(p.id,e)} title={tx.deleteProject} style={{width:30,height:30,borderRadius:8,border:"1px solid var(--input-border)",background:"var(--card-bg)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:fs(14),color:"#ef4444"}}>🗑</button>
+            </div>}
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
               <div style={{width:48,height:48,borderRadius:12,background:p.cor+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:fs(26)}}>{p.icon}</div>
               <div><div style={{fontSize:fs(17),fontWeight:700,color:"var(--text-1)"}}>{p.nome}</div><div style={{fontSize:fs(12),color:"var(--text-3)"}}>{p.ramo}</div></div>
             </div>
-            <p style={{fontSize:fs(13),color:"var(--text-2)",marginBottom:14,lineHeight:1.5}}>{p.desc}</p>
+            <p style={{fontSize:fs(13),color:"var(--text-2)",marginBottom:10,lineHeight:1.5}}>{p.desc}</p>
+            {memberNames.length>0&&<div style={{marginBottom:10,display:"flex",flexWrap:"wrap",gap:4}}>
+              {memberNames.slice(0,5).map((n,i)=><span key={i} style={{fontSize:fs(11),padding:"2px 8px",borderRadius:10,background:p.cor+"18",color:p.cor,fontWeight:500}}>{n}</span>)}
+              {memberNames.length>5&&<span style={{fontSize:fs(11),padding:"2px 8px",borderRadius:10,background:"var(--hover-bg)",color:"var(--text-3)"}}>+{memberNames.length-5}</span>}
+            </div>}
             <div style={{display:"flex",gap:16,fontSize:fs(12),color:"var(--text-3)"}}>
               <span>👥 <strong style={{color:"var(--text-1)"}}>{p.clients.length}</strong> {tx.clientsCount}</span>
               <span>🔥 {p.clients.filter(c=>["proposta","negociacao"].includes(c.status)).length} {tx.inNegotiation}</span>
+              <span>👤 {(p.members||[]).length} {tx.membersAssigned}</span>
             </div>
           </div>
-        ))}
+        );})}
       </div>
+      {/* Edit Members Modal */}
+      {editProjId&&editProj&&(
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={()=>setEditProjId(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--card-bg)",borderRadius:16,padding:28,width:460,maxHeight:"80vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+              <span style={{fontSize:fs(24)}}>{editProj.icon}</span>
+              <div><h3 style={{fontSize:fs(18),fontWeight:700,color:"var(--text-1)",margin:0}}>{tx.editMembers}</h3><p style={{fontSize:fs(13),color:"var(--text-3)",margin:0}}>{editProj.nome}</p></div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {users.filter(u=>u.ativo).map(u=>{
+                const isMb = editMembers.includes(u.id);
+                const avatar = LS.get("avatar_"+u.id);
+                return (
+                  <label key={u.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,background:isMb?"rgba(79,70,229,0.08)":"var(--bg-2)",cursor:"pointer",border:isMb?"2px solid #4f46e5":"2px solid transparent",transition:"all .2s"}}>
+                    <input type="checkbox" checked={isMb} onChange={()=>setEditMembers(isMb?editMembers.filter(x=>x!==u.id):[...editMembers,u.id])} style={{accentColor:"#4f46e5",width:18,height:18}}/>
+                    {avatar?<img src={avatar} alt="" style={{width:32,height:32,borderRadius:16,objectFit:"cover"}}/>:
+                    <span style={{width:32,height:32,borderRadius:16,background:"linear-gradient(135deg,#4f46e5,#7c3aed)",color:"white",fontSize:fs(12),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{u.nome.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2)}</span>}
+                    <div style={{flex:1}}><div style={{fontSize:fs(14),fontWeight:600,color:"var(--text-1)"}}>{u.nome}</div><div style={{fontSize:fs(11),color:"var(--text-3)"}}>{u.email} — {u.role}</div></div>
+                  </label>
+                );
+              })}
+            </div>
+            {editMsg&&<div style={{marginTop:14,padding:"8px 14px",borderRadius:8,fontSize:fs(13),fontWeight:500,background:"rgba(22,163,74,0.1)",color:"#16a34a",textAlign:"center"}}>{editMsg}</div>}
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:18}}>
+              <button onClick={()=>setEditProjId(null)} style={{padding:"9px 20px",borderRadius:8,border:"1px solid var(--input-border)",background:"var(--card-bg)",color:"var(--text-2)",fontSize:fs(13),fontWeight:600,cursor:"pointer"}}>{tx.cancel}</button>
+              <button onClick={saveMembers} style={{padding:"9px 20px",borderRadius:8,border:"none",background:"var(--accent-grad)",color:"white",fontSize:fs(13),fontWeight:600,cursor:"pointer"}}>💾 {tx.save||"Salvar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
