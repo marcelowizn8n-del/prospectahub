@@ -406,6 +406,7 @@ const migrateClient = (c) => {
   if(!m.pipe) m.pipe = m.status==="fechado"?"fechado":m.status==="negociacao"?"negociacao":m.status==="contatado"?"contato":"prospeccao";
   if(!m.followups) m.followups = [];
   if(!m.historico) m.historico = [];
+  if(!m.socialProfile) m.socialProfile = null;
   return m;
 };
 
@@ -580,6 +581,92 @@ Format: plain text with === CALL === , === WHATSAPP === , === EMAIL === separato
     if(!r.ok) throw new Error("Erro API OpenAI");
     return (await r.json()).choices[0].message.content;
   }
+};
+
+// Analisar perfil social da empresa via Brave + IA
+const analyzeSocialProfile = async (company, lang) => {
+  const keys = getApiKeys();
+  if(!keys.braveKey) throw new Error(lang==='en'?"Brave Search key not configured":"Chave Brave Search não configurada");
+  if(!keys.aiKey) throw new Error(lang==='en'?"AI key not configured":"Chave de IA não configurada");
+  const pt=lang!=='en';
+
+  // Buscar conteúdo social via Brave
+  const searches = [];
+  if(company.social?.instagram) searches.push({platform:"Instagram",q:`site:instagram.com "${company.nome}"`});
+  else searches.push({platform:"Instagram",q:`${company.nome} instagram`});
+  if(company.social?.linkedin) searches.push({platform:"LinkedIn",q:`site:linkedin.com "${company.nome}"`});
+  else searches.push({platform:"LinkedIn",q:`${company.nome} linkedin posts`});
+  if(company.social?.facebook) searches.push({platform:"Facebook",q:`site:facebook.com "${company.nome}"`});
+  else searches.push({platform:"Facebook",q:`${company.nome} facebook`});
+  searches.push({platform:"Web",q:`"${company.nome}" ${company.regiao||""} novidades`});
+
+  let allSnippets = [];
+  for(const s of searches) {
+    try {
+      const results = await braveSearch(s.q, keys.braveKey);
+      for(const r of results.slice(0,5)) {
+        allSnippets.push({platform:s.platform,title:r.title||"",snippet:r.snippet||"",url:r.link||""});
+      }
+    } catch {}
+  }
+  if(allSnippets.length===0) throw new Error(pt?"Nenhum conteúdo social encontrado":"No social content found");
+
+  const snippetText = allSnippets.map(s=>`[${s.platform}] ${s.title}: ${s.snippet}`).join("\n");
+
+  const prompt = pt?`Analise o perfil social e presença online desta empresa para prospecção B2B:
+
+Empresa: ${company.nome}
+Tipo: ${company.tipo}
+Região: ${company.regiao||"N/A"}
+
+Conteúdo encontrado nas redes sociais e web:
+${snippetText}
+
+Com base no conteúdo acima, gere uma análise em JSON válido (sem markdown):
+{
+  "resumo": "Resumo em 2-3 frases do que a empresa comunica/posta",
+  "posicionamento": "Como a empresa se posiciona no mercado (premium, popular, técnico, etc)",
+  "temas": ["tema1", "tema2", "tema3"],
+  "tom": "Tom de comunicação (formal, informal, técnico, emocional, etc)",
+  "publicoAlvo": "Quem parece ser o público-alvo deles",
+  "pontosFortes": ["ponto1", "ponto2"],
+  "oportunidades": ["Como abordar baseado no que postam - dica 1", "dica 2", "dica 3"],
+  "estrategia": "Estratégia de venda personalizada em 3-4 frases: como abordar, o que falar, o que evitar, baseado no perfil social"
+}`:`Analyze this company's social media profile for B2B prospecting:
+Company: ${company.nome}, Type: ${company.tipo}
+Social content found:
+${snippetText}
+Return valid JSON (no markdown):
+{
+  "resumo": "2-3 sentence summary of what the company communicates/posts",
+  "posicionamento": "Market positioning (premium, popular, technical, etc)",
+  "temas": ["topic1", "topic2", "topic3"],
+  "tom": "Communication tone",
+  "publicoAlvo": "Target audience",
+  "pontosFortes": ["strength1", "strength2"],
+  "oportunidades": ["approach tip 1", "tip 2", "tip 3"],
+  "estrategia": "Personalized sales strategy in 3-4 sentences based on social profile"
+}`;
+
+  let result;
+  if(keys.aiProvider === "anthropic") {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",headers:{"Content-Type":"application/json","x-api-key":keys.aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content:prompt}]})
+    });
+    if(!r.ok) throw new Error("Erro API Anthropic");
+    result = JSON.parse((await r.json()).content[0].text);
+  } else {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${keys.aiKey}`},
+      body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"user",content:prompt}],temperature:0.4})
+    });
+    if(!r.ok) throw new Error("Erro API OpenAI");
+    result = JSON.parse((await r.json()).choices[0].message.content);
+  }
+  result.analyzedAt = new Date().toISOString();
+  result.sources = allSnippets.slice(0,6).map(s=>({platform:s.platform,title:s.title,url:s.url}));
+  return result;
 };
 
 // Converter resultado do Google Places para formato de cliente
@@ -1673,6 +1760,7 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
   const [editCompras,setEditCompras]=useState(false),[newProd,setNewProd]=useState("");
   const [newHist,setNewHist]=useState(""),[newFupDate,setNewFupDate]=useState(""),[newFupNote,setNewFupNote]=useState("");
   const [scriptLoading,setScriptLoading]=useState(false),[script,setScript]=useState("");
+  const [socialLoading,setSocialLoading]=useState(false),[socialErr,setSocialErr]=useState("");
   if(!cl) return null;
   const t = TIPOS.find(x=>x.v===cl.tipo);
   const mc = migrateClient(cl);
@@ -1823,6 +1911,90 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
             {mc.avaliacoes.reviewSummary&&<div style={{marginTop:8,fontSize:fs(12),color:"#78350f",fontStyle:"italic"}}>{mc.avaliacoes.reviewSummary}</div>}
           </div>}
           {(!mc.social?.website&&!mc.social?.linkedin&&!mc.social?.instagram&&!mc.social?.facebook)&&<div style={{textAlign:"center",padding:20,color:"var(--text-4)",fontSize:fs(13)}}>{tx.noSocialLinks}</div>}
+
+          {/* Social Profile Analysis */}
+          {canEdit&&<div style={{...S.card,padding:14,marginTop:16,background:"linear-gradient(135deg,#ec4899 0%,#8b5cf6 100%)",color:"white",borderRadius:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontSize:fs(14),fontWeight:700}}>🔍 {lang==='en'?"Social Profile Analysis":"Análise de Perfil Social"}</div>
+                <div style={{fontSize:fs(11),opacity:0.85}}>{lang==='en'?"AI searches social media to discover what this company posts, their positioning and suggests a sales strategy":"IA pesquisa redes sociais para descobrir o que esta empresa posta, seu posicionamento e sugere uma estratégia de venda"}</div>
+              </div>
+              <button onClick={async()=>{setSocialLoading(true);setSocialErr("");try{const profile=await analyzeSocialProfile(mc,lang);updateCl({socialProfile:profile});const hist=[...(mc.historico||[]),{date:new Date().toISOString(),type:"note",text:lang==='en'?`Social profile analyzed by AI`:`Perfil social analisado por IA`}];updateCl({socialProfile:profile,historico:hist});}catch(e){setSocialErr(e.message);}setSocialLoading(false);}} disabled={socialLoading} style={{padding:"8px 18px",borderRadius:8,background:"rgba(255,255,255,0.2)",color:"white",border:"1px solid rgba(255,255,255,0.3)",fontSize:fs(12),fontWeight:600,cursor:socialLoading?"wait":"pointer",whiteSpace:"nowrap",flexShrink:0}}>{socialLoading?(lang==='en'?"Analyzing...":"Analisando..."):(mc.socialProfile?(lang==='en'?"Re-analyze 🔄":"Re-analisar 🔄"):(lang==='en'?"Analyze Profile 🤖":"Analisar Perfil 🤖"))}</button>
+            </div>
+            {socialErr&&<div style={{marginTop:8,padding:8,background:"rgba(0,0,0,0.2)",borderRadius:6,fontSize:fs(11)}}>❌ {socialErr}</div>}
+          </div>}
+
+          {/* Social Profile Results */}
+          {mc.socialProfile&&<div style={{marginTop:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <h4 style={{fontSize:fs(14),fontWeight:700,color:"var(--text-1)",margin:0}}>📊 {lang==='en'?"Social Profile Intelligence":"Inteligência do Perfil Social"}</h4>
+              <span style={{fontSize:fs(10),color:"var(--text-3)"}}>{mc.socialProfile.analyzedAt&&new Date(mc.socialProfile.analyzedAt).toLocaleDateString(lang==='en'?'en-US':'pt-BR')}</span>
+            </div>
+
+            {/* Resumo */}
+            <div style={{...S.card,padding:14,marginBottom:10,borderLeft:"4px solid #8b5cf6"}}>
+              <div style={{fontSize:fs(11),fontWeight:600,color:"#8b5cf6",marginBottom:4}}>📝 {lang==='en'?"Summary":"Resumo"}</div>
+              <div style={{fontSize:fs(12),color:"var(--text-1)",lineHeight:1.6}}>{mc.socialProfile.resumo}</div>
+            </div>
+
+            {/* Posicionamento + Tom + Público */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+              <div style={{...S.card,padding:10}}>
+                <div style={{fontSize:fs(10),fontWeight:600,color:"var(--text-3)",marginBottom:4}}>🎯 {lang==='en'?"Positioning":"Posicionamento"}</div>
+                <div style={{fontSize:fs(12),fontWeight:600,color:"var(--text-1)"}}>{mc.socialProfile.posicionamento}</div>
+              </div>
+              <div style={{...S.card,padding:10}}>
+                <div style={{fontSize:fs(10),fontWeight:600,color:"var(--text-3)",marginBottom:4}}>🗣️ {lang==='en'?"Tone":"Tom"}</div>
+                <div style={{fontSize:fs(12),fontWeight:600,color:"var(--text-1)"}}>{mc.socialProfile.tom}</div>
+              </div>
+              <div style={{...S.card,padding:10}}>
+                <div style={{fontSize:fs(10),fontWeight:600,color:"var(--text-3)",marginBottom:4}}>👥 {lang==='en'?"Target Audience":"Público-Alvo"}</div>
+                <div style={{fontSize:fs(12),fontWeight:600,color:"var(--text-1)"}}>{mc.socialProfile.publicoAlvo}</div>
+              </div>
+            </div>
+
+            {/* Temas */}
+            {mc.socialProfile.temas?.length>0&&<div style={{marginBottom:10}}>
+              <div style={{fontSize:fs(11),fontWeight:600,color:"var(--text-2)",marginBottom:6}}>📌 {lang==='en'?"Topics they post about":"Temas que postam"}</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {mc.socialProfile.temas.map((t,i)=><span key={i} style={{padding:"4px 10px",borderRadius:16,background:"#f3e8ff",color:"#7c3aed",fontSize:fs(11),fontWeight:600}}>{t}</span>)}
+              </div>
+            </div>}
+
+            {/* Pontos Fortes */}
+            {mc.socialProfile.pontosFortes?.length>0&&<div style={{marginBottom:10}}>
+              <div style={{fontSize:fs(11),fontWeight:600,color:"var(--text-2)",marginBottom:6}}>💪 {lang==='en'?"Strengths":"Pontos Fortes"}</div>
+              {mc.socialProfile.pontosFortes.map((p,i)=><div key={i} style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:4}}>
+                <span style={{color:"#22c55e",fontSize:fs(12)}}>✓</span>
+                <span style={{fontSize:fs(12),color:"var(--text-1)"}}>{p}</span>
+              </div>)}
+            </div>}
+
+            {/* Oportunidades de Abordagem */}
+            {mc.socialProfile.oportunidades?.length>0&&<div style={{...S.card,padding:14,marginBottom:10,borderLeft:"4px solid #f59e0b",background:"var(--warn-bg)"}}>
+              <div style={{fontSize:fs(12),fontWeight:700,color:"#b45309",marginBottom:8}}>💡 {lang==='en'?"Approach Opportunities":"Oportunidades de Abordagem"}</div>
+              {mc.socialProfile.oportunidades.map((o,i)=><div key={i} style={{display:"flex",gap:6,alignItems:"flex-start",marginBottom:6}}>
+                <span style={{color:"#f59e0b",fontWeight:700,fontSize:fs(12)}}>{i+1}.</span>
+                <span style={{fontSize:fs(12),color:"#78350f",lineHeight:1.5}}>{o}</span>
+              </div>)}
+            </div>}
+
+            {/* Estratégia */}
+            {mc.socialProfile.estrategia&&<div style={{...S.card,padding:14,marginBottom:10,borderLeft:"4px solid #22c55e",background:"#f0fdf4"}}>
+              <div style={{fontSize:fs(12),fontWeight:700,color:"#16a34a",marginBottom:6}}>🎯 {lang==='en'?"Personalized Sales Strategy":"Estratégia de Venda Personalizada"}</div>
+              <div style={{fontSize:fs(12),color:"#166534",lineHeight:1.7}}>{mc.socialProfile.estrategia}</div>
+            </div>}
+
+            {/* Sources */}
+            {mc.socialProfile.sources?.length>0&&<details style={{marginTop:8}}>
+              <summary style={{fontSize:fs(10),color:"var(--text-4)",cursor:"pointer"}}>{lang==='en'?"Sources analyzed":"Fontes analisadas"} ({mc.socialProfile.sources.length})</summary>
+              <div style={{marginTop:6}}>
+                {mc.socialProfile.sources.map((s,i)=><div key={i} style={{fontSize:fs(10),color:"var(--text-3)",marginBottom:3}}>
+                  <span style={{fontWeight:600}}>[{s.platform}]</span> {s.title} {s.url&&<a href={s.url} target="_blank" rel="noopener" style={{color:"#4f46e5"}}>↗</a>}
+                </div>)}
+              </div>
+            </details>}
+          </div>}
         </div>}
 
         {/* Sensitivities Tab */}
