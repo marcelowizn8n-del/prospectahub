@@ -1762,8 +1762,10 @@ function Radiografia({cl,cls,setCls,setSec,canEdit,tx,lang}) {
   const [scriptLoading,setScriptLoading]=useState(false),[script,setScript]=useState("");
   const [socialLoading,setSocialLoading]=useState(false),[socialErr,setSocialErr]=useState("");
   if(!cl) return null;
-  const t = TIPOS.find(x=>x.v===cl.tipo);
-  const mc = migrateClient(cl);
+  // Always get fresh version from cls to avoid stale prop
+  const freshCl = cls.find(c=>c.id===cl.id)||cl;
+  const t = TIPOS.find(x=>x.v===freshCl.tipo);
+  const mc = migrateClient(freshCl);
 
   const updateCl = (patch) => {
     const updated = {...mc,...patch};
