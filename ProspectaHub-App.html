@@ -460,10 +460,11 @@ const braveSearch = async (query, braveKey) => {
     const r = await fetch(`/api/brave/res/v1/web/search?q=${encodeURIComponent(query)}&count=10`, {
       headers:{"Accept":"application/json","X-Subscription-Token":braveKey}
     });
-    if(!r.ok) return [];
+    if(!r.ok) { console.warn("Brave Search HTTP",r.status,r.statusText,"for:",query); return []; }
     const data = await r.json();
-    return (data.web?.results||[]).map(r=>({link:r.url||"",title:r.title||"",snippet:r.description||""}));
-  } catch { return []; }
+    const results = (data.web?.results||[]).map(r=>({link:r.url||"",title:r.title||"",snippet:r.description||""}));
+    return results;
+  } catch(e) { console.error("Brave Search error:",e.message,"for:",query); return []; }
 };
 
 const gWebSearch = async (companyName, location) => {
@@ -586,86 +587,119 @@ Format: plain text with === CALL === , === WHATSAPP === , === EMAIL === separato
 // Analisar perfil social da empresa via Brave + IA
 const analyzeSocialProfile = async (company, lang) => {
   const keys = getApiKeys();
-  if(!keys.braveKey) throw new Error(lang==='en'?"Brave Search key not configured":"Chave Brave Search não configurada");
   if(!keys.aiKey) throw new Error(lang==='en'?"AI key not configured":"Chave de IA não configurada");
   const pt=lang!=='en';
 
-  // Buscar conteúdo social via Brave
-  const searches = [];
-  if(company.social?.instagram) searches.push({platform:"Instagram",q:`site:instagram.com "${company.nome}"`});
-  else searches.push({platform:"Instagram",q:`${company.nome} instagram`});
-  if(company.social?.linkedin) searches.push({platform:"LinkedIn",q:`site:linkedin.com "${company.nome}"`});
-  else searches.push({platform:"LinkedIn",q:`${company.nome} linkedin posts`});
-  if(company.social?.facebook) searches.push({platform:"Facebook",q:`site:facebook.com "${company.nome}"`});
-  else searches.push({platform:"Facebook",q:`${company.nome} facebook`});
-  searches.push({platform:"Web",q:`"${company.nome}" ${company.regiao||""} novidades`});
-
+  // Buscar conteúdo social via Brave (se disponível)
   let allSnippets = [];
-  for(const s of searches) {
-    try {
-      const results = await braveSearch(s.q, keys.braveKey);
-      for(const r of results.slice(0,5)) {
-        allSnippets.push({platform:s.platform,title:r.title||"",snippet:r.snippet||"",url:r.link||""});
-      }
-    } catch {}
+  if(keys.braveKey) {
+    const searches = [];
+    // Estratégia 1: busca genérica pelo nome (mais eficaz)
+    searches.push({platform:"Web",q:`"${company.nome}" ${company.regiao||""}`});
+    searches.push({platform:"Web",q:`${company.nome} ${company.tipo||""} ${company.regiao||""}`});
+    // Estratégia 2: buscar nas redes sociais específicas
+    if(company.social?.instagram) searches.push({platform:"Instagram",q:`site:instagram.com ${company.nome}`});
+    else searches.push({platform:"Instagram",q:`${company.nome} instagram`});
+    if(company.social?.linkedin) searches.push({platform:"LinkedIn",q:`site:linkedin.com ${company.nome}`});
+    if(company.social?.facebook) searches.push({platform:"Facebook",q:`site:facebook.com ${company.nome}`});
+    // Estratégia 3: buscar website
+    if(company.social?.website) searches.push({platform:"Website",q:`site:${company.social.website.replace(/https?:\/\//,'').replace(/\/.*/,'')}`});
+
+    for(const s of searches) {
+      try {
+        const results = await braveSearch(s.q, keys.braveKey);
+        for(const r of results.slice(0,5)) {
+          allSnippets.push({platform:s.platform,title:r.title||"",snippet:r.snippet||"",url:r.link||""});
+        }
+      } catch(e) { console.warn("Social search failed:",s.platform,e.message); }
+    }
   }
-  if(allSnippets.length===0) throw new Error(pt?"Nenhum conteúdo social encontrado":"No social content found");
 
-  const snippetText = allSnippets.map(s=>`[${s.platform}] ${s.title}: ${s.snippet}`).join("\n");
+  // Construir contexto com dados conhecidos da empresa (mesmo sem Brave)
+  let contextParts = [];
+  if(allSnippets.length>0) {
+    contextParts.push("Conteúdo encontrado online:\n" + allSnippets.map(s=>`[${s.platform}] ${s.title}: ${s.snippet}`).join("\n"));
+  }
+  // Adicionar dados já conhecidos da empresa como contexto
+  const socialLinks = [];
+  if(company.social?.website) socialLinks.push("Website: "+company.social.website);
+  if(company.social?.instagram) socialLinks.push("Instagram: "+company.social.instagram);
+  if(company.social?.linkedin) socialLinks.push("LinkedIn: "+company.social.linkedin);
+  if(company.social?.facebook) socialLinks.push("Facebook: "+company.social.facebook);
+  if(socialLinks.length) contextParts.push("Redes sociais conhecidas:\n"+socialLinks.join("\n"));
+  if(company.avaliacoes?.google?.rating) contextParts.push(`Avaliação Google: ${company.avaliacoes.google.rating}/5 (${company.avaliacoes.google.count||0} avaliações)`);
+  if(company.avaliacoes?.reviewSummary) contextParts.push("Resumo de avaliações: "+company.avaliacoes.reviewSummary);
+  if(company.endereco) contextParts.push("Endereço: "+company.endereco);
+  if(company.telefone) contextParts.push("Telefone: "+company.telefone);
+  if(company.email) contextParts.push("Email: "+company.email);
+  if(company.produtosRelevantes?.length) contextParts.push("Produtos: "+company.produtosRelevantes.join(", "));
 
-  const prompt = pt?`Analise o perfil social e presença online desta empresa para prospecção B2B:
+  if(contextParts.length===0) throw new Error(pt?"Nenhuma informação disponível para análise":"No information available for analysis");
+  const contextText = contextParts.join("\n\n");
+
+  const prompt = pt?`Analise o perfil e presença online desta empresa para prospecção B2B.
+IMPORTANTE: Baseie-se APENAS nos dados fornecidos. Seja específico e realista. NÃO invente informações.
 
 Empresa: ${company.nome}
-Tipo: ${company.tipo}
+Tipo: ${company.tipo||"N/A"}
 Região: ${company.regiao||"N/A"}
 
-Conteúdo encontrado nas redes sociais e web:
-${snippetText}
+${contextText}
 
-Com base no conteúdo acima, gere uma análise em JSON válido (sem markdown):
+Com base nos dados acima, gere uma análise em JSON válido (sem markdown, sem \`\`\`):
 {
-  "resumo": "Resumo em 2-3 frases do que a empresa comunica/posta",
-  "posicionamento": "Como a empresa se posiciona no mercado (premium, popular, técnico, etc)",
+  "resumo": "Resumo em 2-3 frases do que sabemos sobre esta empresa",
+  "posicionamento": "Como a empresa se posiciona no mercado baseado nos dados disponíveis",
   "temas": ["tema1", "tema2", "tema3"],
-  "tom": "Tom de comunicação (formal, informal, técnico, emocional, etc)",
-  "publicoAlvo": "Quem parece ser o público-alvo deles",
-  "pontosFortes": ["ponto1", "ponto2"],
-  "oportunidades": ["Como abordar baseado no que postam - dica 1", "dica 2", "dica 3"],
-  "estrategia": "Estratégia de venda personalizada em 3-4 frases: como abordar, o que falar, o que evitar, baseado no perfil social"
-}`:`Analyze this company's social media profile for B2B prospecting:
-Company: ${company.nome}, Type: ${company.tipo}
-Social content found:
-${snippetText}
-Return valid JSON (no markdown):
+  "tom": "Tom de comunicação observado ou inferido",
+  "publicoAlvo": "Quem parece ser o público-alvo",
+  "pontosFortes": ["ponto forte 1", "ponto forte 2"],
+  "oportunidades": ["Dica de abordagem 1", "Dica 2", "Dica 3"],
+  "estrategia": "Estratégia de venda personalizada em 3-4 frases: como abordar, o que falar, o que evitar",
+  "fontesDados": "${allSnippets.length>0?'Dados online encontrados':'Dados cadastrados no sistema'}"
+}`:`Analyze this company's profile for B2B prospecting.
+IMPORTANT: Base ONLY on provided data. Be specific and realistic. Do NOT invent information.
+
+Company: ${company.nome}, Type: ${company.tipo||"N/A"}, Region: ${company.regiao||"N/A"}
+
+${contextText}
+
+Return valid JSON (no markdown, no \`\`\`):
 {
-  "resumo": "2-3 sentence summary of what the company communicates/posts",
-  "posicionamento": "Market positioning (premium, popular, technical, etc)",
+  "resumo": "2-3 sentence summary based on available data",
+  "posicionamento": "Market positioning based on available data",
   "temas": ["topic1", "topic2", "topic3"],
-  "tom": "Communication tone",
+  "tom": "Communication tone observed or inferred",
   "publicoAlvo": "Target audience",
   "pontosFortes": ["strength1", "strength2"],
   "oportunidades": ["approach tip 1", "tip 2", "tip 3"],
   "estrategia": "Personalized sales strategy in 3-4 sentences based on social profile"
 }`;
 
-  let result;
+  let rawText;
   if(keys.aiProvider === "anthropic") {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method:"POST",headers:{"Content-Type":"application/json","x-api-key":keys.aiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
       body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content:prompt}]})
     });
-    if(!r.ok) throw new Error("Erro API Anthropic");
-    result = JSON.parse((await r.json()).content[0].text);
+    if(!r.ok) { const err=await r.text().catch(()=>""); console.error("Anthropic API error:",r.status,err); throw new Error(`Erro API Anthropic (${r.status})`); }
+    rawText = (await r.json()).content[0].text;
   } else {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${keys.aiKey}`},
       body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"user",content:prompt}],temperature:0.4})
     });
-    if(!r.ok) throw new Error("Erro API OpenAI");
-    result = JSON.parse((await r.json()).choices[0].message.content);
+    if(!r.ok) { const err=await r.text().catch(()=>""); console.error("OpenAI API error:",r.status,err); throw new Error(`Erro API OpenAI (${r.status})`); }
+    rawText = (await r.json()).choices[0].message.content;
   }
+  // Limpar resposta (remover markdown code fences se existirem)
+  let cleaned = rawText.trim();
+  if(cleaned.startsWith("```")) cleaned = cleaned.replace(/^```(?:json)?\n?/,"").replace(/\n?```$/,"");
+  let result;
+  try { result = JSON.parse(cleaned); } catch(e) { console.error("JSON parse error:",e.message,"Raw:",cleaned); throw new Error(pt?"Erro ao processar resposta da IA":"Error processing AI response"); }
   result.analyzedAt = new Date().toISOString();
-  result.sources = allSnippets.slice(0,6).map(s=>({platform:s.platform,title:s.title,url:s.url}));
+  result.sources = allSnippets.length>0 ? allSnippets.slice(0,6).map(s=>({platform:s.platform,title:s.title,url:s.url})) : [{platform:"Dados cadastrados",title:company.nome,url:""}];
+  result.dataSource = allSnippets.length>0 ? "online" : "cadastro";
   return result;
 };
 
@@ -1603,10 +1637,210 @@ function Dashboard({cls,proj,tx,lang}) {
     const csv = [headers.join(","),...rows.map(r=>r.map(v=>`"${v}"`).join(","))].join("\n");
     const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href=url; a.download=`${proj.nome}_clientes_${new Date().toISOString().split("T")[0]}.csv`; a.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement("a"); a.href=url; a.download=`${proj.nome}_clientes_${new Date().toISOString().split("T")[0]}.csv`; a.click(); URL.revokeObjectURL(url);
   };
+
+  // Export PDF
+  const exportPDF = () => {
+    const d = new Date().toLocaleDateString(pt?'pt-BR':'en-US');
+    const sensLabels = {preco:pt?"Preço":"Price",qualidade:pt?"Qualidade":"Quality",entrega:pt?"Entrega":"Delivery",estoque:pt?"Estoque":"Stock",marca:pt?"Marca":"Brand",posvenda:pt?"Pós-Venda":"After-Sales",custom:pt?"Personalização":"Custom",credito:pt?"Crédito":"Credit"};
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${proj.nome} - ${pt?"Relatório de Clientes":"Client Report"}</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:Arial,sans-serif;font-size:11px;color:#1f2937;padding:20px}
+      .cover{text-align:center;page-break-after:always;padding-top:180px}
+      .cover h1{font-size:32px;color:#4f46e5;margin-bottom:8px}
+      .cover h2{font-size:18px;color:#6b7280;font-weight:400}
+      .cover .date{margin-top:40px;color:#9ca3af;font-size:13px}
+      .company{page-break-inside:avoid;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:16px;background:#fafafa}
+      .company-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:2px solid #4f46e5;padding-bottom:8px}
+      .company-header h3{font-size:16px;color:#1e3a5f;margin:0}
+      .company-header .badges span{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:600;margin-left:4px}
+      .status-novo{background:#dbeafe;color:#1d4ed8}.status-contatado{background:#d1fae5;color:#065f46}.status-negociacao{background:#fef3c7;color:#92400e}.status-fechado{background:#dcfce7;color:#166534}
+      .section{margin-bottom:10px}
+      .section-title{font-size:12px;font-weight:700;color:#4f46e5;margin-bottom:4px;text-transform:uppercase}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+      .field{font-size:10px}.field-label{color:#6b7280;font-size:9px}.field-value{color:#1f2937;font-weight:500}
+      .sens-bar{display:inline-block;height:8px;border-radius:4px;margin-right:2px}
+      .tag{display:inline-block;padding:1px 6px;background:#e0e7ff;color:#3730a3;border-radius:4px;font-size:9px;margin:1px}
+      .social-link{color:#4f46e5;font-size:9px;text-decoration:none}
+      .ai-section{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px;margin-top:6px}
+      .ai-section h4{color:#166534;font-size:11px;margin-bottom:4px}
+      .ai-text{font-size:10px;color:#374151;line-height:1.4}
+      .footer{text-align:center;color:#9ca3af;font-size:9px;margin-top:20px;border-top:1px solid #e5e7eb;padding-top:8px}
+      @media print{body{padding:10px}.company{page-break-inside:avoid}}
+    </style></head><body>`;
+
+    // Cover page
+    html += `<div class="cover"><h1>${proj.nome}</h1><h2>${pt?"Relatório Completo de Clientes":"Complete Client Report"}</h2>
+    <p style="margin-top:12px;color:#6b7280">${mc.length} ${pt?"empresas":"companies"} | ProspectaHub v2.0</p>
+    <p class="date">${pt?"Gerado em":"Generated on"} ${d}</p></div>`;
+
+    // Each company
+    mc.forEach((c,i) => {
+      const m = migrateClient(c);
+      const statusClass = "status-"+(m.status||"novo");
+      html += `<div class="company">`;
+      html += `<div class="company-header"><h3>${i+1}. ${m.nome}</h3><div class="badges">`;
+      html += `<span class="${statusClass}">${(m.status||"novo").toUpperCase()}</span>`;
+      if(m.tipo) html += `<span style="background:#f3e8ff;color:#7c3aed">${m.tipo}</span>`;
+      if(m.avaliacoes?.google?.rating) html += `<span style="background:#fef3c7;color:#92400e">⭐ ${m.avaliacoes.google.rating}</span>`;
+      html += `</div></div>`;
+
+      // Basic info
+      html += `<div class="section"><div class="section-title">📋 ${pt?"Dados Básicos":"Basic Info"}</div><div class="grid">`;
+      if(m.telefone) html += `<div class="field"><span class="field-label">${pt?"Telefone":"Phone"}:</span> <span class="field-value">${m.telefone}</span></div>`;
+      if(m.email) html += `<div class="field"><span class="field-label">Email:</span> <span class="field-value">${m.email}</span></div>`;
+      if(m.endereco) html += `<div class="field"><span class="field-label">${pt?"Endereço":"Address"}:</span> <span class="field-value">${m.endereco}</span></div>`;
+      if(m.regiao) html += `<div class="field"><span class="field-label">${pt?"Região":"Region"}:</span> <span class="field-value">${m.regiao}</span></div>`;
+      if(m.cnpj) html += `<div class="field"><span class="field-label">CNPJ:</span> <span class="field-value">${m.cnpj}</span></div>`;
+      if(m.canalPreferido) html += `<div class="field"><span class="field-label">${pt?"Canal Preferido":"Preferred Channel"}:</span> <span class="field-value">${m.canalPreferido}</span></div>`;
+      html += `</div></div>`;
+
+      // Purchasing dept
+      if(m.compras && (m.compras.nome||m.compras.email||m.compras.tel)) {
+        html += `<div class="section"><div class="section-title">🏢 ${pt?"Dept. de Compras":"Purchasing Dept."}</div><div class="grid">`;
+        if(m.compras.nome) html += `<div class="field"><span class="field-label">${pt?"Nome":"Name"}:</span> <span class="field-value">${m.compras.nome}</span></div>`;
+        if(m.compras.cargo) html += `<div class="field"><span class="field-label">${pt?"Cargo":"Role"}:</span> <span class="field-value">${m.compras.cargo}</span></div>`;
+        if(m.compras.email) html += `<div class="field"><span class="field-label">Email:</span> <span class="field-value">${m.compras.email}</span></div>`;
+        if(m.compras.tel) html += `<div class="field"><span class="field-label">${pt?"Tel":"Phone"}:</span> <span class="field-value">${m.compras.tel}</span></div>`;
+        if(m.compras.whatsapp) html += `<div class="field"><span class="field-label">WhatsApp:</span> <span class="field-value">${m.compras.whatsapp}</span></div>`;
+        html += `</div></div>`;
+      }
+
+      // Social media
+      const social = m.social||{};
+      if(social.website||social.linkedin||social.instagram||social.facebook) {
+        html += `<div class="section"><div class="section-title">🌐 ${pt?"Redes Sociais":"Social Media"}</div><div class="grid">`;
+        if(social.website) html += `<div class="field">🔗 <a class="social-link" href="${social.website}">${social.website}</a></div>`;
+        if(social.linkedin) html += `<div class="field">💼 <a class="social-link" href="${social.linkedin}">LinkedIn</a></div>`;
+        if(social.instagram) html += `<div class="field">📸 <a class="social-link" href="${social.instagram}">Instagram</a></div>`;
+        if(social.facebook) html += `<div class="field">📘 <a class="social-link" href="${social.facebook}">Facebook</a></div>`;
+        html += `</div></div>`;
+      }
+
+      // Sensitivities
+      const sensAI = m.sensAI?.analyzed;
+      const isDefault = !sensAI && Object.values(m.sens||{}).every(v=>v===3);
+      if(!isDefault) {
+        html += `<div class="section"><div class="section-title">📊 ${pt?"Sensibilidades":"Sensitivities"} ${sensAI?'🤖 IA':''}</div><div class="grid">`;
+        Object.entries(sensLabels).forEach(([k,label])=>{
+          const v = m.sens?.[k]||3;
+          const pct = (v/5)*100;
+          const color = v>=4?"#22c55e":v>=3?"#f59e0b":"#ef4444";
+          html += `<div class="field">${label}: <span class="sens-bar" style="width:${pct*0.6}px;background:${color}"></span> <strong>${v}/5</strong></div>`;
+        });
+        html += `</div></div>`;
+      }
+
+      // Products
+      if(m.produtosRelevantes?.length>0) {
+        html += `<div class="section"><div class="section-title">📦 ${pt?"Produtos":"Products"}</div>`;
+        m.produtosRelevantes.forEach(p => { html += `<span class="tag">${p}</span> `; });
+        html += `</div>`;
+      }
+
+      // Social Profile AI Analysis
+      if(m.socialProfile) {
+        html += `<div class="ai-section"><h4>🤖 ${pt?"Inteligência do Perfil Social":"Social Profile Intelligence"}</h4>`;
+        if(m.socialProfile.resumo) html += `<p class="ai-text"><strong>${pt?"Resumo":"Summary"}:</strong> ${m.socialProfile.resumo}</p>`;
+        if(m.socialProfile.posicionamento) html += `<p class="ai-text"><strong>${pt?"Posicionamento":"Positioning"}:</strong> ${m.socialProfile.posicionamento}</p>`;
+        if(m.socialProfile.publicoAlvo) html += `<p class="ai-text"><strong>${pt?"Público-Alvo":"Target Audience"}:</strong> ${m.socialProfile.publicoAlvo}</p>`;
+        if(m.socialProfile.estrategia) html += `<p class="ai-text" style="margin-top:4px"><strong>${pt?"Estratégia":"Strategy"}:</strong> ${m.socialProfile.estrategia}</p>`;
+        if(m.socialProfile.oportunidades?.length) {
+          html += `<p class="ai-text" style="margin-top:4px"><strong>${pt?"Oportunidades":"Opportunities"}:</strong></p><ul style="margin-left:16px;font-size:10px">`;
+          m.socialProfile.oportunidades.forEach(o => { html += `<li>${o}</li>`; });
+          html += `</ul>`;
+        }
+        html += `</div>`;
+      }
+
+      // Notes
+      if(m.notas) html += `<div class="section" style="margin-top:6px"><div class="section-title">📝 ${pt?"Notas":"Notes"}</div><p class="ai-text">${m.notas}</p></div>`;
+
+      html += `</div>`; // end company
+    });
+
+    html += `<div class="footer">ProspectaHub v2.0 | ${pt?"Gerado em":"Generated on"} ${d} | ${mc.length} ${pt?"empresas":"companies"}</div>`;
+    html += `</body></html>`;
+
+    const w = window.open('','_blank');
+    w.document.write(html);
+    w.document.close();
+    setTimeout(()=>{ w.print(); },500);
+  };
+
+  // Export XLSX (via HTML table → Excel format)
+  const exportXLSX = () => {
+    const d = new Date().toISOString().split("T")[0];
+    const sensLabels = ["Preço","Qualidade","Entrega","Estoque","Marca","Pós-Venda","Personalização","Crédito"];
+    const sensKeys = ["preco","qualidade","entrega","estoque","marca","posvenda","custom","credito"];
+    let xml = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
+    xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
+    xml += '<Styles><Style ss:ID="header"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="10"/><Interior ss:Color="#4F46E5" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center"/></Style>';
+    xml += '<Style ss:ID="wrap"><Alignment ss:WrapText="1" ss:Vertical="Top"/></Style></Styles>';
+
+    // Sheet 1: Dados Principais
+    xml += `<Worksheet ss:Name="${pt?"Dados Principais":"Main Data"}"><Table>`;
+    const h1 = ["Nome","Tipo","Status","Pipeline","Telefone","Email","Endereço","Região","CNPJ","Avaliação Google","Qtd Avaliações","Canal Preferido","Website","LinkedIn","Instagram","Facebook","Score","Fonte","Criado Em","Notas"];
+    xml += '<Row>' + h1.map(h=>`<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('') + '</Row>';
+    mc.forEach(c => {
+      const m = migrateClient(c);
+      const score = ((m.telefone?15:0)+(m.email?15:0)+(m.sensAI?.analyzed?20:0)+((m.avaliacoes?.google?.rating||0)>=4?10:(m.avaliacoes?.google?.rating||0)>=3?5:0)+(m.social?.linkedin?5:0)+(m.social?.instagram?5:0)+(m.social?.website?5:0)+(m.produtosRelevantes?.length?10:0)+(m.historico?.length?5:0)+(!Object.values(m.sens||{}).every(v=>v===3)?10:0));
+      const vals = [m.nome,m.tipo||"",m.status||"novo",m.pipe||"prospeccao",m.telefone||"",m.email||"",m.endereco||"",m.regiao||"",m.cnpj||"",
+        m.avaliacoes?.google?.rating||"",m.avaliacoes?.google?.count||"",m.canalPreferido||"",
+        m.social?.website||"",m.social?.linkedin||"",m.social?.instagram||"",m.social?.facebook||"",
+        score+"%",m.fonte||"",m.criadoEm||"",(m.notas||"").substring(0,200)];
+      xml += '<Row>' + vals.map(v=>`<Cell ss:StyleID="wrap"><Data ss:Type="String">${String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</Data></Cell>`).join('') + '</Row>';
+    });
+    xml += '</Table></Worksheet>';
+
+    // Sheet 2: Dept de Compras
+    xml += `<Worksheet ss:Name="${pt?"Dept. Compras":"Purchasing Dept"}"><Table>`;
+    const h2 = ["Empresa","Contato Nome","Cargo","Email","Telefone","WhatsApp"];
+    xml += '<Row>' + h2.map(h=>`<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('') + '</Row>';
+    mc.forEach(c => {
+      const m = migrateClient(c);
+      if(m.compras?.nome||m.compras?.email||m.compras?.tel) {
+        const vals = [m.nome,m.compras.nome||"",m.compras.cargo||"",m.compras.email||"",m.compras.tel||"",m.compras.whatsapp||""];
+        xml += '<Row>' + vals.map(v=>`<Cell><Data ss:Type="String">${String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;")}</Data></Cell>`).join('') + '</Row>';
+      }
+    });
+    xml += '</Table></Worksheet>';
+
+    // Sheet 3: Sensibilidades
+    xml += `<Worksheet ss:Name="${pt?"Sensibilidades":"Sensitivities"}"><Table>`;
+    const h3 = ["Empresa",...sensLabels,"Fonte"];
+    xml += '<Row>' + h3.map(h=>`<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('') + '</Row>';
+    mc.forEach(c => {
+      const m = migrateClient(c);
+      const src = m.sensAI?.analyzed?"IA":Object.values(m.sens||{}).every(v=>v===3)?(pt?"Não analisado":"Not analyzed"):"Manual";
+      const vals = [m.nome,...sensKeys.map(k=>(m.sens?.[k]||3)+"/5"),src];
+      xml += '<Row>' + vals.map(v=>`<Cell><Data ss:Type="String">${v}</Data></Cell>`).join('') + '</Row>';
+    });
+    xml += '</Table></Worksheet>';
+
+    // Sheet 4: Análise Social
+    xml += `<Worksheet ss:Name="${pt?"Análise Social":"Social Analysis"}"><Table>`;
+    const h4 = ["Empresa","Resumo","Posicionamento","Temas","Tom","Público-Alvo","Pontos Fortes","Oportunidades","Estratégia"];
+    xml += '<Row>' + h4.map(h=>`<Cell ss:StyleID="header"><Data ss:Type="String">${h}</Data></Cell>`).join('') + '</Row>';
+    mc.forEach(c => {
+      const m = migrateClient(c);
+      if(m.socialProfile) {
+        const sp = m.socialProfile;
+        const vals = [m.nome,sp.resumo||"",sp.posicionamento||"",(sp.temas||[]).join(", "),sp.tom||"",sp.publicoAlvo||"",(sp.pontosFortes||[]).join(", "),(sp.oportunidades||[]).join("; "),sp.estrategia||""];
+        xml += '<Row>' + vals.map(v=>`<Cell ss:StyleID="wrap"><Data ss:Type="String">${String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</Data></Cell>`).join('') + '</Row>';
+      }
+    });
+    xml += '</Table></Worksheet>';
+
+    xml += '</Workbook>';
+    const blob = new Blob([xml],{type:"application/vnd.ms-excel"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download=`${proj.nome}_clientes_${d}.xls`; a.click(); URL.revokeObjectURL(url);
+  };
+
+  const [showExportMenu,setShowExportMenu]=useState(false);
 
   return (
     <div>
@@ -1615,7 +1849,14 @@ function Dashboard({cls,proj,tx,lang}) {
           <h2 style={{fontSize:fs(22),fontWeight:700,color:"var(--text-1)",margin:0}}>{tx.dashboard}</h2>
           <p style={{fontSize:fs(14),color:"var(--text-2)",marginTop:4}}>{tx.project}: <strong>{proj.nome}</strong></p>
         </div>
-        <button onClick={exportCSV} style={{padding:"8px 16px",borderRadius:8,background:"var(--card-bg)",border:"1px solid var(--border)",color:"var(--text-1)",fontSize:fs(12),fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>📥 {pt?"Exportar CSV":"Export CSV"}</button>
+        <div style={{position:"relative"}}>
+          <button onClick={()=>setShowExportMenu(!showExportMenu)} style={{padding:"8px 16px",borderRadius:8,background:"var(--card-bg)",border:"1px solid var(--border)",color:"var(--text-1)",fontSize:fs(12),fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>📥 {pt?"Exportar":"Export"} ▾</button>
+          {showExportMenu&&<div style={{position:"absolute",right:0,top:"100%",marginTop:4,background:"var(--card-bg)",border:"1px solid var(--border)",borderRadius:8,boxShadow:"0 4px 12px rgba(0,0,0,0.15)",zIndex:99,minWidth:200,overflow:"hidden"}}>
+            <button onClick={()=>{exportCSV();setShowExportMenu(false);}} style={{display:"block",width:"100%",padding:"10px 16px",background:"none",border:"none",color:"var(--text-1)",fontSize:fs(12),cursor:"pointer",textAlign:"left",borderBottom:"1px solid var(--border)"}} onMouseOver={e=>e.target.style.background="var(--input-bg)"} onMouseOut={e=>e.target.style.background="none"}>📊 CSV ({pt?"dados básicos":"basic data"})</button>
+            <button onClick={()=>{exportXLSX();setShowExportMenu(false);}} style={{display:"block",width:"100%",padding:"10px 16px",background:"none",border:"none",color:"var(--text-1)",fontSize:fs(12),cursor:"pointer",textAlign:"left",borderBottom:"1px solid var(--border)"}} onMouseOver={e=>e.target.style.background="var(--input-bg)"} onMouseOut={e=>e.target.style.background="none"}>📗 Excel ({pt?"dados completos":"full data"})</button>
+            <button onClick={()=>{exportPDF();setShowExportMenu(false);}} style={{display:"block",width:"100%",padding:"10px 16px",background:"none",border:"none",color:"var(--text-1)",fontSize:fs(12),cursor:"pointer",textAlign:"left"}} onMouseOver={e=>e.target.style.background="var(--input-bg)"} onMouseOut={e=>e.target.style.background="none"}>📄 PDF ({pt?"relatório completo":"full report"})</button>
+          </div>}
+        </div>
       </div>
 
       {/* Row 1: Performance KPIs */}
